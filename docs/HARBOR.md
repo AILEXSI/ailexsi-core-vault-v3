@@ -124,3 +124,21 @@ Identical canonical + derived state and identical request produce the same `pack
 Rules are explicit counts and matches (tags, projects, `goal:` labels, `user prefers X`, unresolved contradictions, unconfirmed statuses, derived-reference counts, shared dates, shared source sets).
 
 A reflection does **not** interpret motive, emotion, personality, or intent. Contradictions are surfaced unresolved. The existing `harbor.reflect` path (legacy findings artifact) is unchanged and still derived-only.
+
+## Deterministic cultivation proposals
+
+**Class:** V3-DERIVED  
+**Schema:** `harbor-cultivation-proposal-v1`  
+**Not a memory. Not EventStore. Not Derived Index. Not auto-accepted.**
+
+`HarborService.cultivate` / `proposeFromReflections` turn supported OBSERVED reflections into human-review proposals:
+
+| Reflection | Proposal |
+|------------|----------|
+| `preference_change` | Review whether the newer preference should supersede the older one |
+| `unresolved_contradiction` | Review contradictory records |
+| `stale_derived` | Review unconfirmed derived information |
+| `repeated_goal` / `repeated_project` | Review whether this goal/project should remain active |
+
+Statuses: `DRAFT` `PROPOSED` `ACCEPTED` `EDITED` `REJECTED` `DEFERRED` `SUPERSEDED`.  
+Generation starts at `PROPOSED`. `decideCultivation` requires a human. Accept/edit do **not** write Core or mint events. The existing provider `harbor.propose` path is unchanged.

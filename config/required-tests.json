@@ -12,6 +12,7 @@
     "tests/unit/harbor-derived-query.test.ts",
     "tests/unit/harbor-context-assembly.test.ts",
     "tests/unit/harbor-reflection-engine.test.ts",
+    "tests/unit/harbor-cultivation-proposals.test.ts",
     "tests/integration/ai-writeback-safety.test.ts"
   ]
 }

@@ -16,6 +16,12 @@ import {
 } from "./context-assembly.js";
 import { reflectOnMemories } from "./reflection.js";
 import { reflectFromQuery, type ObservedReflection } from "./reflection-engine.js";
+import {
+  applyCultivationDecision,
+  proposeFromReflections,
+  type CultivationProposal,
+  type CultivationProposalStatus,
+} from "./cultivation-proposals.js";
 import { MockHarborProvider, recordInvocation, type HarborProvider } from "./provider.js";
 import { buildHarborExport, inspectHarborExport, type HarborExportPackage } from "./export.js";
 import { buildHarborConnectome } from "./connectome-harbor.js";
@@ -58,6 +64,8 @@ export class HarborService {
   readonly contradictions = new Map<string, ReturnType<typeof detectContradictions>[number]>();
   readonly reflections = new Map<string, ReflectionArtifact>();
   readonly proposals = new Map<string, HarborProposal>();
+  /** Session-local cultivation proposals. Never persisted to the Derived Index. */
+  readonly cultivation = new Map<string, CultivationProposal>();
   readonly invocations: ReturnType<typeof recordInvocation>[] = [];
   readonly imports = new Map<string, ImportSession>();
   readonly provider: HarborProvider;
@@ -155,6 +163,7 @@ export class HarborService {
         conflictCount: s.conflicts.length,
       })),
       derivedIndex: this.derivedIndexInfo(),
+      cultivation: [...this.cultivation.values()],
     };
   }
 
@@ -264,6 +273,58 @@ export class HarborService {
       catalog: opts?.catalog,
       context: opts?.context,
     });
+  }
+
+  /**
+   * Deterministic cultivation proposals from OBSERVED reflections.
+   * READ-ONLY source. Session-local only. Never persists. Never writes EventStore.
+   */
+  cultivate(
+    actor: HarborActor,
+    now = nowIso(),
+    opts?: { catalog?: ContextMemory[]; context?: ContextPackage }
+  ): CultivationProposal[] {
+    assertCapability(actor, "READ_ONLY");
+    const reflections = this.reflectObserved(actor, now, opts);
+    const generated = proposeFromReflections(reflections, actor, now);
+    const out: CultivationProposal[] = [];
+    for (const next of generated) {
+      const prev = this.cultivation.get(next.proposalId);
+      const merged: CultivationProposal = prev
+        ? {
+            ...next,
+            status: prev.status,
+            title: prev.status === "EDITED" ? prev.title : next.title,
+            description: prev.status === "EDITED" ? prev.description : next.description,
+            decidedBy: prev.decidedBy,
+            decidedAt: prev.decidedAt,
+          }
+        : next;
+      this.cultivation.set(merged.proposalId, merged);
+      out.push(structuredClone(merged));
+    }
+    return out;
+  }
+
+  decideCultivation(
+    proposalId: string,
+    status: Extract<CultivationProposalStatus, "ACCEPTED" | "EDITED" | "REJECTED" | "DEFERRED" | "SUPERSEDED">,
+    actor: HarborActor,
+    extras?: { title?: string; description?: string; now?: string }
+  ): CultivationProposal {
+    if (status === "ACCEPTED" || status === "EDITED") {
+      assertCapability(actor, "CANONICAL_COMMIT");
+    } else {
+      assertCapability(actor, "DERIVED_WRITE");
+    }
+    if (actor.kind !== "human") {
+      throw new Error("Cultivation decision requires a human");
+    }
+    const current = this.cultivation.get(proposalId);
+    if (!current) throw new Error(`Cultivation proposal ${proposalId} not found`);
+    const next = applyCultivationDecision(current, status, actor, extras?.now ?? nowIso(), extras);
+    this.cultivation.set(proposalId, next);
+    return structuredClone(next);
   }
 
   temporal(cell: MemoryCell) {
@@ -498,6 +559,7 @@ export class HarborService {
     this.contradictions.clear();
     this.reflections.clear();
     this.proposals.clear();
+    this.cultivation.clear();
     this.invocations.length = 0;
     this.rebuildGeneration = 0;
     this.lastRebuiltAt = undefined;

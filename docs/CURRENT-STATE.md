@@ -16,7 +16,8 @@ See `git rev-parse HEAD`. Last Harbor slice commit is on `main`.
 | Durable derived index | `d7cccd21680ededcf36be1783583bf754b822611` | persist + rebuild marker |
 | Derived query | `4d2003b15d2d4eecc15f5174cc8cec8685d8cfda` | read-only derived query service |
 | Context assembly | `bcf6a82b8a932e551b5ac214985b643924ea6edb` | deterministic ContextPackage |
-| This worktree | `git rev-parse HEAD` | deterministic reflection engine |
+| Observed reflection | `5d5b112be9bf16d5657d72c522e98931d35fdc6a` | deterministic OBSERVED reflections |
+| This worktree | `git rev-parse HEAD` | deterministic cultivation proposals |
 
 ## LATEST GREEN TAG
 
@@ -40,6 +41,7 @@ No new V3 GREEN tag is minted until a dedicated freeze is authorized.
 - Deterministic context assembly (`harbor-context-package-v1`) over the Derived Query Service: explicit IDs/source/status/project/temporal, inspectable inclusions/exclusions, unresolved contradictions preserved
 - Reflection with evidence IDs (rule-based, works without an LLM)
 - Deterministic OBSERVED reflection engine (`harbor-reflection-observation-v1`) over query/context: topics, projects, goals, preference values, unresolved contradictions, unconfirmed derived, frequent references, temporal clusters, shared sources
+- Deterministic cultivation proposals (`harbor-cultivation-proposal-v1`) from observed reflections: review preference/contradiction/unconfirmed/goal/project; human ACCEPT/EDIT/REJECT/DEFER; never a Core write
 - Provider invocation log (mock)
 - Staged import: SCAN → VALIDATE → PREVIEW → CONFLICT → CONFIRM → WRITE (derived only)
 - Rebuild derived from canonical without touching EventStore

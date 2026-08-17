@@ -238,6 +238,27 @@ gate(
   })()
 );
 gate(
+  "HARBOR CULTIVATION PROPOSALS PRESENT",
+  (() => {
+    const cult = path.join(root, "packages/harbor/src/cultivation-proposals.ts");
+    const svc = path.join(root, "packages/harbor/src/service.ts");
+    if (!existsSync(cult) || !existsSync(svc)) return false;
+    const src = readFileSync(cult, "utf8");
+    const serviceSrc = readFileSync(svc, "utf8");
+    return (
+      src.includes("proposeFromReflections") &&
+      src.includes("review_preference") &&
+      src.includes("review_contradiction") &&
+      src.includes("Not EventStore") &&
+      !src.includes("writeFileSync") &&
+      !src.includes("PostgresEventStore") &&
+      serviceSrc.includes("cultivate(") &&
+      serviceSrc.includes("decideCultivation") &&
+      serviceSrc.includes("Never persists")
+    );
+  })()
+);
+gate(
   "V2 STRUCTURE PRESENT",
   existsSync(path.join(root, "packages/command-adapter/src/index.ts")) &&
     existsSync(path.join(root, "packages/command-adapter/src/core-runtime.ts")) &&

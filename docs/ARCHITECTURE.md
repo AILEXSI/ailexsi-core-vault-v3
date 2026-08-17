@@ -13,14 +13,15 @@ CANONICAL CORTEX
 CORE VAULT V2 (historical source @ d684aa4)
      │
      ▼
-CORE VAULT V3 (this repository; functionally equivalent bootstrap)
+CORE VAULT V3 (harbor around Core)
      │
      ├── Memory (CORE-BACKED)
-     ├── Connectome (V2 presentation; PARTIAL)
+     ├── Connectome (V2 presentation + Harbor wrap)
      ├── Continuity (V2 derived artifact)
      ├── Cultivation (V2 + Core writeback on accept)
      ├── Retrieval / read models (V2)
-     └── AI interaction (V2 proposals)
+     ├── Harbor (V3-DERIVED: epistemic, context, contradiction, reflection, agency, export)
+     └── AI interaction (proposals remain derived until accept)
 ```
 
 ## Boundaries
@@ -70,6 +71,11 @@ Serializes a classified portable snapshot. Canonical content is reconstructible 
 
 Tooling only: `scan → parse → validate → report`.  
 No production Core event writeback in foundation.
+
+### packages/harbor
+
+Derived cognitive harbor. Rebuildable overlays and inspectable packages.  
+Never a second EventStore. See [HARBOR.md](HARBOR.md).
 
 ### packages/connectome
 

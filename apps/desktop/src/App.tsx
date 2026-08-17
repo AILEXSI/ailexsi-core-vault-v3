@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { MemoryPanel } from "./components/MemoryPanel";
 import { CultivationPanel } from "./components/CultivationPanel";
+import { HarborPanel } from "./components/HarborPanel";
 
 type DomainView =
   | "overview"
@@ -12,7 +13,8 @@ type DomainView =
   | "projects"
   | "connectome"
   | "continuity"
-  | "cultivation";
+  | "cultivation"
+  | "harbor";
 
 const DOMAINS: Array<{
   id: DomainView;
@@ -89,6 +91,14 @@ const DOMAINS: Array<{
     blurb:
       "BACKEND GREEN + UI co-creation surface (pending DCS freeze). Mock LLM; human accept only.",
   },
+  {
+    id: "harbor",
+    label: "Harbor",
+    classification: "V2-DERIVED",
+    status: "PARTIAL",
+    blurb:
+      "Derived cognitive harbor: epistemic overlays, context packages, contradictions, reflection, agency, inspectable export. Not a second Core.",
+  },
 ];
 
 export function App() {
@@ -123,8 +133,8 @@ export function App() {
           <>
             <h2>AILEXSI Core Vault V3</h2>
             <p className="muted">
-              Core is authoritative for canonical facts. This vault owns presentation,
-              cultivation, retrieval, Continuity packaging, and derived cognition.
+              Core is the Cortex. V3 is the harbor: derived cognition, context,
+              reflection, provenance and controlled agency around canonical Memory.
             </p>
             <div className="card">
               <h2>Baselines</h2>
@@ -155,8 +165,8 @@ export function App() {
             <div className="card">
               <h2>Not implemented (honest)</h2>
               <p className="muted">
-                <span className="badge planned">PLANNED</span> Physics · Knowledge ·
-                Reflection · Learning · Trust · Scheduler · full Connectome ontology ·
+                <span className="badge planned">PLANNED</span> Physics · Knowledge
+                domain · Learning · Trust · Scheduler · Core Relation aggregate ·
                 multi-agent cognition
               </p>
             </div>
@@ -165,6 +175,8 @@ export function App() {
           <MemoryPanel />
         ) : active?.id === "cultivation" ? (
           <CultivationPanel />
+        ) : active?.id === "harbor" ? (
+          <HarborPanel />
         ) : (
           active && (
             <div className="card">

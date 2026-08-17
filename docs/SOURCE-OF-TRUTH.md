@@ -1,5 +1,7 @@
 # Source of Truth Contract — Vault V3 (V2 contract, inherited)
 
+Harbor overlays (`packages/harbor`) are **V3-DERIVED**. They must never become a hidden dual-write path. Canonical mutations still require the Core event path.
+
 ## Owner table
 
 | Concern | Owner |

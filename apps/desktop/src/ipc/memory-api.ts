@@ -17,7 +17,18 @@ export type DesktopHostCommandName =
   | "cultivation.chat"
   | "cultivation.proposal.reject"
   | "cultivation.proposal.defer"
-  | "cultivation.proposal.accept";
+  | "cultivation.proposal.accept"
+  | "harbor.snapshot"
+  | "harbor.scan"
+  | "harbor.context"
+  | "harbor.reflect"
+  | "harbor.contradiction.resolve"
+  | "harbor.propose"
+  | "harbor.proposal.decide"
+  | "harbor.confirm"
+  | "harbor.graph"
+  | "harbor.export"
+  | "harbor.import";
 
 /** @deprecated alias — Memory-only surface retained for callers */
 export type MemoryCommandName =

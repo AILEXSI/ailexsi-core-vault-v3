@@ -1,8 +1,7 @@
 # AILEXSI Core Vault V3 — Current State
 
-> **V3 bootstrap:** this repository is a successor copy of
-> `AILEXSI/ailexsi-core-vault-v2` @ `d684aa4a3c292c1d1f1587a68371589437b68055`.
-> No new V3 functionality in this baseline.
+> **V3 bootstrap:** successor of `AILEXSI/ailexsi-core-vault-v2` @ `d684aa4a3c292c1d1f1587a68371589437b68055`.  
+> **Harbor:** derived cognitive layer (`packages/harbor`, DesktopHost `harbor.*`). Core still canonical.
 
 > **Documentation is not proof.**  
 > The authoritative freeze identity is the **Git annotated tag** resolving to the tested commit (`tag^{}`).
@@ -49,10 +48,19 @@ evidence/runs/<testedSha>.acceptance.json
 
 See `evidence/README.md`.
 
-## Next
+## Harbor (this generation)
 
-- **Phase 4.1** — evidence emission (tooling) — this layer  
-- **Continuity Foundation v1** — implementation on main after freeze (pending live GREEN)
-- **Phase 5+ Cultivation/Connectome** — not authorized until Continuity frozen
+| Slice | Status |
+|-------|--------|
+| Epistemic overlays + confirm-to-USER_ASSERTED | VERIFIED (unit) |
+| Agency boundary | VERIFIED (unit) |
+| Contradiction detect/resolve (no auto-decide) | VERIFIED (unit) |
+| Context package (reasons, budget, reproducible) | VERIFIED (unit) |
+| Reflection (derived, evidenced) | VERIFIED (unit) |
+| Provider invocation log | VERIFIED (unit) |
+| Inspectable export/import (no Core write) | VERIFIED (unit) |
+| Harbor Connectome wrap | VERIFIED (unit) |
+| Desktop `harbor.*` commands + Harbor UI | PARTIAL |
+| Live Harbor+Postgres gate | NOT STARTED |
 
 Phase 08 Physics: **ABSENT**

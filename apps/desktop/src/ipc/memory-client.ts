@@ -352,3 +352,28 @@ export async function cultivationProposalAccept(args: {
 }): Promise<unknown> {
   return hostCommand("cultivation.proposal.accept", args);
 }
+
+export async function harborSnapshot(): Promise<unknown> {
+  return hostCommand("harbor.snapshot", { actorKind: "human" });
+}
+
+export async function harborScan(): Promise<unknown> {
+  return hostCommand("harbor.scan", { actorKind: "human" });
+}
+
+export async function harborReflect(): Promise<unknown> {
+  return hostCommand("harbor.reflect", { actorKind: "human" });
+}
+
+export async function harborContext(query: string): Promise<unknown> {
+  return hostCommand("harbor.context", {
+    actorKind: "human",
+    query,
+    maxItems: 12,
+    maxChars: 8000,
+  });
+}
+
+export async function harborExport(): Promise<unknown> {
+  return hostCommand("harbor.export", { actorKind: "human", selectedCanonicalMemoryIds: [] });
+}

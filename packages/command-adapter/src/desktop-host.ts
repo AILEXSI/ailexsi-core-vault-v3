@@ -27,6 +27,13 @@ import {
   MockLlmProvider,
   type LlmProvider,
 } from "@ailexsi/v2-cultivation";
+import {
+  HarborService,
+  type ContextAssemblyInput,
+  type ContradictionResolution,
+  type HarborActor,
+  type HarborExportPackage,
+} from "@ailexsi/v3-harbor";
 
 export type DesktopMemoryCommand =
   | "memory.create"
@@ -46,7 +53,18 @@ export type DesktopMemoryCommand =
   | "cultivation.chat"
   | "cultivation.proposal.reject"
   | "cultivation.proposal.defer"
-  | "cultivation.proposal.accept";
+  | "cultivation.proposal.accept"
+  | "harbor.snapshot"
+  | "harbor.scan"
+  | "harbor.context"
+  | "harbor.reflect"
+  | "harbor.contradiction.resolve"
+  | "harbor.propose"
+  | "harbor.proposal.decide"
+  | "harbor.confirm"
+  | "harbor.graph"
+  | "harbor.export"
+  | "harbor.import";
 
 export interface DesktopHostStartOptions extends CreateCoreRuntimeOptions {
   /** Optional fixed connection string (tests). */
@@ -58,6 +76,7 @@ export class DesktopHost {
   private startGeneration = 0;
   private commandCount = 0;
   private cultivation: CultivationService | null = null;
+  private harbor: HarborService | null = null;
   private llm: LlmProvider = new MockLlmProvider(
     "Cultivation foundation mock proposal text"
   );
@@ -91,6 +110,10 @@ export class DesktopHost {
     });
     // Long-lived cultivation service — same adapter as CoreRuntime (no per-command runtime)
     this.cultivation = new CultivationService(this.llm, this.runtime.adapter);
+    this.harbor = new HarborService({
+      corePin: "652d01eb06dd0841c3b475023883675af6dcd698",
+      vaultReferenceSha: "061e444389090c54e431b0e8243e82764f2c198e",
+    });
     this.startGeneration += 1;
   }
 
@@ -107,6 +130,7 @@ export class DesktopHost {
     const rt = this.runtime;
     this.runtime = null;
     this.cultivation = null;
+    this.harbor = null;
     await rt.close();
   }
 
@@ -446,6 +470,130 @@ export class DesktopHost {
   async getCanonicalCell(memoryId: UUID): Promise<MemoryCell | null> {
     return this.requireRuntime().adapter.get(memoryId);
   }
+
+  private requireHarbor(): HarborService {
+    if (!this.harbor) {
+      throw new Error("Harbor not available — DesktopHost not started");
+    }
+    return this.harbor;
+  }
+
+  private actorOf(args: Record<string, unknown>): HarborActor {
+    const kind = args.actorKind === "ai" || args.actorKind === "system" ? args.actorKind : "human";
+    return {
+      id: String(args.actorId ?? (kind === "human" ? "desktop-user" : "desktop-ai")),
+      kind,
+      authorizeCanonical: kind === "human",
+    };
+  }
+
+  private async loadCells(): Promise<MemoryCell[]> {
+    const rt = this.requireRuntime();
+    const listed = await rt.queries.listAll({ includeArchived: true });
+    const cells: MemoryCell[] = [];
+    for (const item of listed) {
+      const cell = await rt.adapter.get(item.id);
+      if (cell) cells.push(cell);
+    }
+    return cells;
+  }
+
+  async harborSnapshot(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor().snapshot(this.actorOf(args));
+  }
+
+  async harborScan(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    const cells = await this.loadCells();
+    return this.requireHarbor().scan(cells, this.actorOf(args));
+  }
+
+  async harborContext(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    const cells = await this.loadCells();
+    const request = (args.request ?? args) as ContextAssemblyInput;
+    return this.requireHarbor().assemble(
+      cells,
+      {
+        query: request.query,
+        currentTask: request.currentTask,
+        selectedMemoryIds: request.selectedMemoryIds,
+        projects: request.projects,
+        tags: request.tags,
+        maxItems: request.maxItems ?? 12,
+        maxChars: request.maxChars ?? 8000,
+      },
+      this.actorOf(args)
+    );
+  }
+
+  async harborReflect(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    const cells = await this.loadCells();
+    return this.requireHarbor().reflect(cells, this.actorOf(args));
+  }
+
+  async harborResolveContradiction(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor().resolveContradiction(
+      String(args.id ?? args.contradictionId ?? ""),
+      args.resolution as ContradictionResolution,
+      this.actorOf(args)
+    );
+  }
+
+  async harborPropose(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor().propose(this.actorOf({ ...args, actorKind: args.actorKind ?? "ai" }), {
+      text: String(args.text ?? ""),
+      sourceMemoryIds: (args.sourceMemoryIds as string[]) ?? [],
+      contextIds: (args.contextIds as string[]) ?? [],
+    });
+  }
+
+  async harborDecideProposal(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor().decideProposal(
+      String(args.proposalId ?? ""),
+      args.status as "ACCEPTED" | "EDITED" | "REJECTED" | "DEFERRED" | "DISCUSSING" | "SUPERSEDED",
+      this.actorOf(args),
+      { resultingEventIds: args.resultingEventIds as string[] | undefined }
+    );
+  }
+
+  async harborConfirm(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor().confirm(String(args.memoryId ?? ""), this.actorOf(args));
+  }
+
+  async harborGraph(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    const cells = await this.loadCells();
+    return this.requireHarbor().graph(cells, this.actorOf(args));
+  }
+
+  async harborExport(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    const ids = (args.selectedCanonicalMemoryIds as string[]) ?? [];
+    return this.requireHarbor().exportPackage(ids, this.actorOf(args));
+  }
+
+  async harborImport(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor().importPackage(args.package as HarborExportPackage, this.actorOf(args));
+  }
 }
 
 /** Process-lifetime singleton used by Tauri/IPC bridge. */
@@ -520,6 +668,28 @@ export async function invokeDesktopCommand(
       return host.cultivationProposalDefer(args);
     case "cultivation.proposal.accept":
       return host.cultivationProposalAccept(args);
+    case "harbor.snapshot":
+      return host.harborSnapshot(args);
+    case "harbor.scan":
+      return host.harborScan(args);
+    case "harbor.context":
+      return host.harborContext(args);
+    case "harbor.reflect":
+      return host.harborReflect(args);
+    case "harbor.contradiction.resolve":
+      return host.harborResolveContradiction(args);
+    case "harbor.propose":
+      return host.harborPropose(args);
+    case "harbor.proposal.decide":
+      return host.harborDecideProposal(args);
+    case "harbor.confirm":
+      return host.harborConfirm(args);
+    case "harbor.graph":
+      return host.harborGraph(args);
+    case "harbor.export":
+      return host.harborExport(args);
+    case "harbor.import":
+      return host.harborImport(args);
     default: {
       const _exhaustive: never = command;
       throw new Error(`Unknown desktop command: ${String(_exhaustive)}`);

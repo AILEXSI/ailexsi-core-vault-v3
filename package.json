@@ -34,6 +34,7 @@
     "test:continuity": "vitest run --config vitest.config.ts tests/integration/continuity-foundation-gate.test.ts tests/unit/continuity-v1.test.ts tests/unit/continuity.test.ts",
     "test:cultivation": "vitest run --config vitest.config.ts tests/integration/cultivation-foundation-gate.test.ts tests/unit/cultivation-foundation.test.ts tests/integration/ai-writeback-safety.test.ts",
     "test:dcs": "vitest run --config vitest.config.ts tests/integration/desktop-co-creation-surface-gate.test.ts tests/unit/desktop-co-creation-client.test.ts",
+    "test:harbor": "vitest run --config vitest.config.ts tests/unit/harbor-harbor.test.ts",
     "verify:live": "node scripts/live-verification.mjs"
   },
   "workspaces": [

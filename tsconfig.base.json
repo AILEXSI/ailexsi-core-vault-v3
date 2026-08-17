@@ -28,6 +28,7 @@
       "@ailexsi/v2-migration": ["packages/migration/src/index.ts"],
       "@ailexsi/v2-connectome": ["packages/connectome/src/index.ts"],
       "@ailexsi/v2-test-kit": ["packages/test-kit/src/index.ts"],
+      "@ailexsi/v3-harbor": ["packages/harbor/src/index.ts"],
       "@ailexsi/contracts": [".deps/ailexsi-core/packages/contracts/src/index.ts"],
       "@ailexsi/memory": [".deps/ailexsi-core/packages/core/memory/src/index.ts"],
       "@ailexsi/eventstore": [".deps/ailexsi-core/packages/infrastructure/eventstore/src/index.ts"],

@@ -1,5 +1,5 @@
 {
-  "name": "@ailexsi/v2-command-adapter",
+  "name": "@ailexsi/v3-harbor",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,6 +8,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@ailexsi/v3-harbor": "*"
+    "@ailexsi/v2-connectome": "*"
   }
 }

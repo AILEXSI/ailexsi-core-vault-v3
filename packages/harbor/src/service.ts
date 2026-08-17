@@ -15,6 +15,7 @@ import {
   type ContextMemory,
 } from "./context-assembly.js";
 import { reflectOnMemories } from "./reflection.js";
+import { reflectFromQuery, type ObservedReflection } from "./reflection-engine.js";
 import { MockHarborProvider, recordInvocation, type HarborProvider } from "./provider.js";
 import { buildHarborExport, inspectHarborExport, type HarborExportPackage } from "./export.js";
 import { buildHarborConnectome } from "./connectome-harbor.js";
@@ -35,7 +36,7 @@ import {
   type DerivedIndexStatus,
 } from "./derived-index.js";
 import { DerivedQueryService, type DerivedQuerySnapshot } from "./derived-query.js";
-import { HARBOR_CLASS, HARBOR_VERSION, type ContradictionResolution, type EpistemicRecord, type HarborActor, type HarborProposal, type HarborProposalType, type ReflectionArtifact } from "./types.js";
+import { HARBOR_CLASS, HARBOR_VERSION, type ContextPackage, type ContradictionResolution, type EpistemicRecord, type HarborActor, type HarborProposal, type HarborProposalType, type ReflectionArtifact } from "./types.js";
 
 export interface HarborServicePins {
   corePin: string;
@@ -244,6 +245,25 @@ export class HarborService {
     this.reflections.set(artifact.id, artifact);
     this.persistDerived();
     return artifact;
+  }
+
+  /**
+   * READ-ONLY OBSERVED reflections. Does not persist, does not write EventStore,
+   * does not resolve contradictions, does not store the result as memory.
+   */
+  reflectObserved(
+    actor: HarborActor,
+    now = nowIso(),
+    opts?: { catalog?: ContextMemory[]; context?: ContextPackage }
+  ): ObservedReflection[] {
+    assertCapability(actor, "READ_ONLY");
+    return reflectFromQuery({
+      query: this.queries(actor),
+      actor,
+      now,
+      catalog: opts?.catalog,
+      context: opts?.context,
+    });
   }
 
   temporal(cell: MemoryCell) {

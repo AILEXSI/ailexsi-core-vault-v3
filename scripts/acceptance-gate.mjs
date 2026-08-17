@@ -218,6 +218,26 @@ gate(
   })()
 );
 gate(
+  "HARBOR REFLECTION ENGINE PRESENT",
+  (() => {
+    const eng = path.join(root, "packages/harbor/src/reflection-engine.ts");
+    const svc = path.join(root, "packages/harbor/src/service.ts");
+    if (!existsSync(eng) || !existsSync(svc)) return false;
+    const src = readFileSync(eng, "utf8");
+    const serviceSrc = readFileSync(svc, "utf8");
+    return (
+      src.includes("reflectFromQuery") &&
+      src.includes("DerivedQueryService") &&
+      src.includes("OBSERVED") &&
+      src.includes("unresolved_contradiction") &&
+      src.includes("Never EventStore") &&
+      !src.includes("writeFileSync") &&
+      !src.includes("PostgresEventStore") &&
+      serviceSrc.includes("reflectObserved")
+    );
+  })()
+);
+gate(
   "V2 STRUCTURE PRESENT",
   existsSync(path.join(root, "packages/command-adapter/src/index.ts")) &&
     existsSync(path.join(root, "packages/command-adapter/src/core-runtime.ts")) &&

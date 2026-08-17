@@ -111,3 +111,16 @@ Selection uses explicit deterministic rules only (no embeddings):
 Every included item has a reason. Temporal, status, project, tag, and budget misses are recorded as exclusions. Contradictions touching selected items are attached unresolved.
 
 Identical canonical + derived state and identical request produce the same `packageId`, selection, and ordering.
+
+## Deterministic reflection
+
+**Class:** V3-DERIVED  
+**Schema:** `harbor-reflection-observation-v1`  
+**Capability:** `READ_ONLY`  
+**Stance:** OBSERVED only. Not EventStore. Not persisted. Not a memory write.
+
+`HarborService.reflectObserved` / `reflectFromQuery` derive inspectable observations from the Derived Query Service and optional ContextPackage/catalog.
+
+Rules are explicit counts and matches (tags, projects, `goal:` labels, `user prefers X`, unresolved contradictions, unconfirmed statuses, derived-reference counts, shared dates, shared source sets).
+
+A reflection does **not** interpret motive, emotion, personality, or intent. Contradictions are surfaced unresolved. The existing `harbor.reflect` path (legacy findings artifact) is unchanged and still derived-only.

@@ -5,6 +5,7 @@ export * from "./contradiction.js";
 export * from "./temporal.js";
 export * from "./context-assembly.js";
 export * from "./reflection.js";
+export * from "./reflection-engine.js";
 export * from "./provider.js";
 export * from "./export.js";
 export * from "./import-pipeline.js";

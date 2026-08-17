@@ -39,7 +39,9 @@ Human confirmation produces `USER_ASSERTED`.
 `harbor.contradiction.resolve` `harbor.propose` `harbor.proposal.decide`  
 `harbor.confirm` `harbor.graph` `harbor.export`  
 `harbor.import` (scan only) `harbor.import.validate` `harbor.import.preview`  
-`harbor.import.conflicts` `harbor.import.confirm` `harbor.import.reject` `harbor.rebuild`
+`harbor.import.conflicts` `harbor.import.confirm` `harbor.import.reject` `harbor.rebuild`  
+`harbor.query.memory` `harbor.query.list` `harbor.query.source`  
+`harbor.query.status` `harbor.query.contradictions` `harbor.query.provenance`
 
 Import WRITE is derived-only and requires a human after SCAN → VALIDATE → PREVIEW → CONFLICT.
 
@@ -70,3 +72,22 @@ Known load states: `empty` | `ready` | `rebuilding` | `corrupt` | `schema_mismat
 A missing, corrupt, mismatched, or interrupted index is repaired by `harbor.rebuild` / `rebuildFromCanonical`. It never requires deleting or rewriting canonical state.
 
 CLEAR DERIVED → REPLAY CANONICAL → REBUILD DERIVED is deterministic for the rebuildable slices (epistemic, contradictions, reflections). Proposals/invocations are session-derived and are not part of the rebuild fingerprint.
+
+## Derived query service
+
+**Class:** V3-DERIVED  
+**Capability:** `READ_ONLY`  
+**Not EventStore. Not a write path.**
+
+`HarborService.queries(actor)` and `DerivedQueryService.fromIndex(persistDir)` expose a deterministic read model over the derived index:
+
+| Method | Result |
+|--------|--------|
+| `getDerivedMemory(id)` | Epistemic overlay by stable memory ID |
+| `listDerivedMemories({ offset, limit })` | All overlays, `memoryId` ascending |
+| `findDerivedBySource(memoryId)` | Epistemic / contradiction / reflection / proposal hits citing that canonical ID |
+| `findDerivedByStatus(status)` | Epistemic overlays with that status |
+| `findContradictions({ resolution, sourceMemoryId })` | Contradiction records, `id` ascending |
+| `getDerivedProvenance(id)` | Canonical source IDs for a derived record |
+
+Query results are cloned. Mutating them does not mutate the index and does not persist. Missing, corrupt, schema-mismatch, or interrupted indexes remain known states; repair is still `rebuildFromCanonical`.

@@ -31,6 +31,7 @@ import {
   HarborService,
   type ContextAssemblyInput,
   type ContradictionResolution,
+  type EpistemicStatus,
   type HarborActor,
   type HarborExportPackage,
 } from "@ailexsi/v3-harbor";
@@ -70,7 +71,13 @@ export type DesktopMemoryCommand =
   | "harbor.import.conflicts"
   | "harbor.import.confirm"
   | "harbor.import.reject"
-  | "harbor.rebuild";
+  | "harbor.rebuild"
+  | "harbor.query.memory"
+  | "harbor.query.list"
+  | "harbor.query.source"
+  | "harbor.query.status"
+  | "harbor.query.contradictions"
+  | "harbor.query.provenance";
 
 export interface DesktopHostStartOptions extends CreateCoreRuntimeOptions {
   /** Optional fixed connection string (tests). */
@@ -653,6 +660,68 @@ export class DesktopHost {
     const cells = await this.loadCells();
     return this.requireHarbor().rebuildFromCanonical(cells, this.actorOf(args));
   }
+
+  async harborQueryMemory(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor()
+      .queries(this.actorOf(args))
+      .getDerivedMemory(String(args.id ?? args.memoryId ?? ""));
+  }
+
+  async harborQueryList(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor()
+      .queries(this.actorOf(args))
+      .listDerivedMemories({
+        offset: typeof args.offset === "number" ? args.offset : undefined,
+        limit: typeof args.limit === "number" ? args.limit : undefined,
+      });
+  }
+
+  async harborQuerySource(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor()
+      .queries(this.actorOf(args))
+      .findDerivedBySource(String(args.memoryId ?? args.id ?? ""), {
+        offset: typeof args.offset === "number" ? args.offset : undefined,
+        limit: typeof args.limit === "number" ? args.limit : undefined,
+      });
+  }
+
+  async harborQueryStatus(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor()
+      .queries(this.actorOf(args))
+      .findDerivedByStatus(args.status as EpistemicStatus, {
+        offset: typeof args.offset === "number" ? args.offset : undefined,
+        limit: typeof args.limit === "number" ? args.limit : undefined,
+      });
+  }
+
+  async harborQueryContradictions(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor()
+      .queries(this.actorOf(args))
+      .findContradictions({
+        resolution: args.resolution as ContradictionResolution | undefined,
+        sourceMemoryId: typeof args.sourceMemoryId === "string" ? args.sourceMemoryId : undefined,
+        offset: typeof args.offset === "number" ? args.offset : undefined,
+        limit: typeof args.limit === "number" ? args.limit : undefined,
+      });
+  }
+
+  async harborQueryProvenance(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor()
+      .queries(this.actorOf(args))
+      .getDerivedProvenance(String(args.id ?? args.memoryId ?? ""));
+  }
 }
 
 /** Process-lifetime singleton used by Tauri/IPC bridge. */
@@ -761,6 +830,18 @@ export async function invokeDesktopCommand(
       return host.harborImportReject(args);
     case "harbor.rebuild":
       return host.harborRebuild(args);
+    case "harbor.query.memory":
+      return host.harborQueryMemory(args);
+    case "harbor.query.list":
+      return host.harborQueryList(args);
+    case "harbor.query.source":
+      return host.harborQuerySource(args);
+    case "harbor.query.status":
+      return host.harborQueryStatus(args);
+    case "harbor.query.contradictions":
+      return host.harborQueryContradictions(args);
+    case "harbor.query.provenance":
+      return host.harborQueryProvenance(args);
     default: {
       const _exhaustive: never = command;
       throw new Error(`Unknown desktop command: ${String(_exhaustive)}`);

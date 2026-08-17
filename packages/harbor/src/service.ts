@@ -30,6 +30,7 @@ import {
   rebuildFingerprint,
   type DerivedIndexStatus,
 } from "./derived-index.js";
+import { DerivedQueryService, type DerivedQuerySnapshot } from "./derived-query.js";
 import { HARBOR_CLASS, HARBOR_VERSION, type ContradictionResolution, type EpistemicRecord, type HarborActor, type HarborProposal, type HarborProposalType, type ReflectionArtifact } from "./types.js";
 
 export interface HarborServicePins {
@@ -101,6 +102,34 @@ export class HarborService {
       contradictions: [...this.contradictions.values()],
       reflections: [...this.reflections.values()],
     });
+  }
+
+  /**
+   * READ-ONLY query facade over the current derived index.
+   * Never persists. Never touches EventStore.
+   */
+  queries(actor: HarborActor): DerivedQueryService {
+    assertCapability(actor, "READ_ONLY");
+    return new DerivedQueryService(() => this.captureQuerySnapshot());
+  }
+
+  private captureQuerySnapshot(): DerivedQuerySnapshot {
+    const info = this.derivedIndexInfo();
+    return {
+      status: info.status,
+      reason: info.reason,
+      persistDir: info.persistDir,
+      durable: info.durable,
+      fingerprint: info.fingerprint,
+      rebuildGeneration: info.rebuildGeneration,
+      corePin: info.corePin,
+      vaultReferenceSha: info.vaultReferenceSha,
+      schemaVersion: info.schemaVersion,
+      epistemic: [...this.epistemic.values()],
+      contradictions: [...this.contradictions.values()],
+      reflections: [...this.reflections.values()],
+      proposals: [...this.proposals.values()],
+    };
   }
 
   snapshot(actor: HarborActor) {

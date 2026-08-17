@@ -13,7 +13,8 @@ See `git rev-parse HEAD`. Last Harbor slice commit is on `main`.
 | V3 bootstrap tag | `v3.0.0-v2-baseline` → `8a29278760021c63320d1bd4284c21dae5058445` | V2 copy + identity only |
 | Harbor core | `219dbfa72bb137c0b7a5957e7983c903e668cc17` | derived package + unit tests |
 | Harbor import | `be6b53b176d0bd80cc733172d611af35b9517a48` | staged import + agentic + nav |
-| This worktree | `git rev-parse HEAD` | durable rebuildable derived index |
+| Durable derived index | `d7cccd21680ededcf36be1783583bf754b822611` | persist + rebuild marker |
+| This worktree | `git rev-parse HEAD` | deterministic derived query service |
 
 ## LATEST GREEN TAG
 
@@ -40,6 +41,7 @@ No new V3 GREEN tag is minted until a dedicated freeze is authorized.
 - Rebuild derived from canonical without touching EventStore
 - Durable derived index (`harbor-derived-index-v1`): JSON snapshot, atomic write, rebuild marker
 - CLEAR DERIVED → REPLAY CANONICAL → REBUILD is deterministic; corrupt/missing/interrupted/schema-mismatch are known states
+- Deterministic derived query service (READ-ONLY): get/list/source/status/contradictions/provenance + pagination
 - Agentic failure tests (blocked unauthorized write, flagged contradiction, required-test inventory)
 - Desktop nav: Home/Harbor, Memory, Context, Reflection, Cultivation, Connectome, Continuity, Evidence, Settings
 

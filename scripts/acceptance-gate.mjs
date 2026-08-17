@@ -171,6 +171,30 @@ gate(
   })()
 );
 gate(
+  "HARBOR DERIVED QUERY PRESENT",
+  (() => {
+    const q = path.join(root, "packages/harbor/src/derived-query.ts");
+    const svc = path.join(root, "packages/harbor/src/service.ts");
+    if (!existsSync(q) || !existsSync(svc)) return false;
+    const querySrc = readFileSync(q, "utf8");
+    const serviceSrc = readFileSync(svc, "utf8");
+    return (
+      querySrc.includes("getDerivedMemory") &&
+      querySrc.includes("listDerivedMemories") &&
+      querySrc.includes("findDerivedBySource") &&
+      querySrc.includes("findDerivedByStatus") &&
+      querySrc.includes("findContradictions") &&
+      querySrc.includes("getDerivedProvenance") &&
+      querySrc.includes("READ-ONLY") &&
+      !querySrc.includes("writeFileSync") &&
+      !querySrc.includes("PostgresEventStore") &&
+      !querySrc.includes("appendEvent") &&
+      serviceSrc.includes("queries(") &&
+      serviceSrc.includes("DerivedQueryService")
+    );
+  })()
+);
+gate(
   "V2 STRUCTURE PRESENT",
   existsSync(path.join(root, "packages/command-adapter/src/index.ts")) &&
     existsSync(path.join(root, "packages/command-adapter/src/core-runtime.ts")) &&

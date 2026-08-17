@@ -151,6 +151,26 @@ gate(
     )
 );
 gate(
+  "HARBOR DERIVED INDEX PRESENT",
+  (() => {
+    const idx = path.join(root, "packages/harbor/src/derived-index.ts");
+    const svc = path.join(root, "packages/harbor/src/service.ts");
+    if (!existsSync(idx) || !existsSync(svc)) return false;
+    const indexSrc = readFileSync(idx, "utf8");
+    const serviceSrc = readFileSync(svc, "utf8");
+    return (
+      indexSrc.includes("harbor-derived-index-v1") &&
+      indexSrc.includes("FileDerivedIndex") &&
+      indexSrc.includes("Never EventStore") &&
+      !indexSrc.includes("PostgresEventStore") &&
+      !indexSrc.includes("appendEvent") &&
+      serviceSrc.includes("FileDerivedIndex") &&
+      serviceSrc.includes("clearDerived") &&
+      serviceSrc.includes("rebuildFromCanonical")
+    );
+  })()
+);
+gate(
   "V2 STRUCTURE PRESENT",
   existsSync(path.join(root, "packages/command-adapter/src/index.ts")) &&
     existsSync(path.join(root, "packages/command-adapter/src/core-runtime.ts")) &&

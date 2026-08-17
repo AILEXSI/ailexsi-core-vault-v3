@@ -47,6 +47,10 @@ function redactUrl(url: string): string {
 
 loadDotEnv();
 
+if (!process.env.HARBOR_DERIVED_INDEX_PATH) {
+  process.env.HARBOR_DERIVED_INDEX_PATH = path.join(root, "data", "derived-index");
+}
+
 const port = Number(process.env.DESKTOP_HOST_PORT || 17890);
 
 console.log(
@@ -91,6 +95,9 @@ try {
 
 console.log(`DesktopHost bridge listening on ${server.url}`);
 console.log(`store: ${getDesktopHost().storeConstructorName()}`);
+console.log(
+  `derived-index: ${process.env.HARBOR_DERIVED_INDEX_PATH} (V3-DERIVED, rebuildable, not EventStore)`
+);
 console.log(
   "Commands: POST /commands/memory.create|get|list|update|archive|restore|history"
 );

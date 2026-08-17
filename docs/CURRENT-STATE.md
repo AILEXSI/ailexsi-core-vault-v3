@@ -12,7 +12,8 @@ See `git rev-parse HEAD`. Last Harbor slice commit is on `main`.
 |------|-----|------|
 | V3 bootstrap tag | `v3.0.0-v2-baseline` → `8a29278760021c63320d1bd4284c21dae5058445` | V2 copy + identity only |
 | Harbor core | `219dbfa72bb137c0b7a5957e7983c903e668cc17` | derived package + unit tests |
-| This worktree | `git rev-parse HEAD` | after import/UX/agentic slice |
+| Harbor import | `be6b53b176d0bd80cc733172d611af35b9517a48` | staged import + agentic + nav |
+| This worktree | `git rev-parse HEAD` | durable rebuildable derived index |
 
 ## LATEST GREEN TAG
 
@@ -37,12 +38,13 @@ No new V3 GREEN tag is minted until a dedicated freeze is authorized.
 - Provider invocation log (mock)
 - Staged import: SCAN → VALIDATE → PREVIEW → CONFLICT → CONFIRM → WRITE (derived only)
 - Rebuild derived from canonical without touching EventStore
+- Durable derived index (`harbor-derived-index-v1`): JSON snapshot, atomic write, rebuild marker
+- CLEAR DERIVED → REPLAY CANONICAL → REBUILD is deterministic; corrupt/missing/interrupted/schema-mismatch are known states
 - Agentic failure tests (blocked unauthorized write, flagged contradiction, required-test inventory)
 - Desktop nav: Home/Harbor, Memory, Context, Reflection, Cultivation, Connectome, Continuity, Evidence, Settings
 
 ## PARTIAL
 
-- Harbor derived store is **in-process** (exportable; not durable across restarts)
 - Desktop Context/Reflection/Connectome/Continuity panels are host-backed or honest placeholders
 - Harbor export does not copy canonical Memory bodies (IDs + derived overlays only)
 - Continuity v1 schema unchanged; Harbor has a separate export schema
@@ -50,7 +52,6 @@ No new V3 GREEN tag is minted until a dedicated freeze is authorized.
 
 ## PLANNED
 
-- Durable derived index (rebuildable, non-canonical)
 - Live Harbor+Postgres dedicated gate
 - Full contradiction/confirm UI (not JSON dump)
 - Core Relation aggregate
@@ -66,7 +67,7 @@ No new V3 GREEN tag is minted until a dedicated freeze is authorized.
 
 ## NEXT BUILD SLICE
 
-Durable rebuildable derived index **or** a dedicated Harbor+Postgres live gate — not more mock surfaces.
+Dedicated Harbor+Postgres live gate — not more mock surfaces.
 
 ## ARCHITECTURAL INVARIANTS
 

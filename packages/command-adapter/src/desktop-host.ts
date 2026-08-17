@@ -75,6 +75,11 @@ export type DesktopMemoryCommand =
 export interface DesktopHostStartOptions extends CreateCoreRuntimeOptions {
   /** Optional fixed connection string (tests). */
   connectionString?: string;
+  /**
+   * Non-canonical Harbor derived-index directory.
+   * Defaults to HARBOR_DERIVED_INDEX_PATH when set. Never EventStore.
+   */
+  harborPersistDir?: string;
 }
 
 export class DesktopHost {
@@ -116,9 +121,11 @@ export class DesktopHost {
     });
     // Long-lived cultivation service — same adapter as CoreRuntime (no per-command runtime)
     this.cultivation = new CultivationService(this.llm, this.runtime.adapter);
-    this.harbor = new HarborService({
+    const persistDir = options.harborPersistDir ?? process.env.HARBOR_DERIVED_INDEX_PATH;
+    this.harbor = HarborService.open({
       corePin: "652d01eb06dd0841c3b475023883675af6dcd698",
       vaultReferenceSha: "061e444389090c54e431b0e8243e82764f2c198e",
+      persistDir: persistDir || undefined,
     });
     this.startGeneration += 1;
   }

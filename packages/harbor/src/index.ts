@@ -9,4 +9,5 @@ export * from "./provider.js";
 export * from "./export.js";
 export * from "./import-pipeline.js";
 export * from "./connectome-harbor.js";
+export * from "./derived-index.js";
 export * from "./service.js";

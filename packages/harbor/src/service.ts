@@ -23,7 +23,21 @@ import {
   validateImportSession,
   type ImportSession,
 } from "./import-pipeline.js";
+import {
+  buildDerivedDocument,
+  DERIVED_INDEX_SCHEMA,
+  FileDerivedIndex,
+  rebuildFingerprint,
+  type DerivedIndexStatus,
+} from "./derived-index.js";
 import { HARBOR_CLASS, HARBOR_VERSION, type ContradictionResolution, type EpistemicRecord, type HarborActor, type HarborProposal, type HarborProposalType, type ReflectionArtifact } from "./types.js";
+
+export interface HarborServicePins {
+  corePin: string;
+  vaultReferenceSha: string;
+  /** When set, derived state is persisted here. Never EventStore. */
+  persistDir?: string;
+}
 
 function nowIso(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/, ".000Z");
@@ -41,12 +55,52 @@ export class HarborService {
   readonly invocations: ReturnType<typeof recordInvocation>[] = [];
   readonly imports = new Map<string, ImportSession>();
   readonly provider: HarborProvider;
+  readonly derivedIndex: FileDerivedIndex | null;
+
+  private persistSuspended = false;
+  private derivedStatus: DerivedIndexStatus = "empty";
+  private derivedReason?: string;
+  private rebuildGeneration = 0;
+  private lastRebuiltAt?: string;
 
   constructor(
-    private readonly pins: { corePin: string; vaultReferenceSha: string },
+    private readonly pins: HarborServicePins,
     provider?: HarborProvider
   ) {
     this.provider = provider ?? new MockHarborProvider();
+    this.derivedIndex = pins.persistDir ? new FileDerivedIndex(pins.persistDir) : null;
+    if (this.derivedIndex) {
+      this.loadFromDisk();
+    }
+  }
+
+  /** Reopen a durable derived index (same as `new` with persistDir). */
+  static open(pins: HarborServicePins, provider?: HarborProvider): HarborService {
+    return new HarborService(pins, provider);
+  }
+
+  derivedIndexInfo() {
+    return {
+      schemaVersion: DERIVED_INDEX_SCHEMA,
+      class: HARBOR_CLASS,
+      kind: "derived-index" as const,
+      status: this.derivedStatus,
+      persistDir: this.derivedIndex?.persistDir ?? null,
+      durable: Boolean(this.derivedIndex),
+      fingerprint: this.currentFingerprint(),
+      rebuildGeneration: this.rebuildGeneration,
+      reason: this.derivedReason,
+      corePin: this.pins.corePin,
+      vaultReferenceSha: this.pins.vaultReferenceSha,
+    };
+  }
+
+  currentFingerprint(): string {
+    return rebuildFingerprint({
+      epistemic: [...this.epistemic.values()],
+      contradictions: [...this.contradictions.values()],
+      reflections: [...this.reflections.values()],
+    });
   }
 
   snapshot(actor: HarborActor) {
@@ -66,6 +120,7 @@ export class HarborService {
         preview: s.preview,
         conflictCount: s.conflicts.length,
       })),
+      derivedIndex: this.derivedIndexInfo(),
     };
   }
 
@@ -93,12 +148,15 @@ export class HarborService {
       const prev = this.contradictions.get(c.id);
       this.contradictions.set(c.id, prev ?? c);
     }
+    this.persistDerived();
     return [...this.contradictions.values()];
   }
 
   assemble(memories: MemoryCell[], request: ContextAssemblyInput, actor: HarborActor, now = nowIso()) {
     assertCapability(actor, "READ_ONLY");
+    const before = this.epistemic.size;
     this.ensureCoreOverlay(memories, now);
+    if (this.epistemic.size !== before) this.persistDerived();
     return assembleContextPackage({
       request,
       memories: memories.map((m) => ({
@@ -133,6 +191,7 @@ export class HarborService {
       id: randomUUID(),
     });
     this.reflections.set(artifact.id, artifact);
+    this.persistDerived();
     return artifact;
   }
 
@@ -153,6 +212,7 @@ export class HarborService {
       inferredRecord(memoryId, actor, [], 0.5, now, "Missing overlay — treated as INFERRED, not FACT");
     const next = confirmAsUserAsserted(current, actor, now);
     this.epistemic.set(memoryId, next);
+    this.persistDerived();
     return next;
   }
 
@@ -162,6 +222,7 @@ export class HarborService {
     if (!current) throw new Error(`No epistemic overlay for ${memoryId}`);
     const next = rejectRecord(current, actor, now);
     this.epistemic.set(memoryId, next);
+    this.persistDerived();
     return next;
   }
 
@@ -176,6 +237,7 @@ export class HarborService {
     if (!rec) throw new Error(`Contradiction ${id} not found`);
     const next = resolveContradiction(rec, resolution, actor, now);
     this.contradictions.set(id, next);
+    this.persistDerived();
     return next;
   }
 
@@ -220,6 +282,7 @@ export class HarborService {
       class: HARBOR_CLASS,
     };
     this.proposals.set(proposal.proposalId, proposal);
+    this.persistDerived();
     return proposal;
   }
 
@@ -248,6 +311,7 @@ export class HarborService {
       resultingEventIds: extras?.resultingEventIds ?? p.resultingEventIds,
     };
     this.proposals.set(proposalId, next);
+    this.persistDerived();
     return next;
   }
 
@@ -341,6 +405,7 @@ export class HarborService {
       appliedAt: now,
     };
     this.imports.set(sessionId, applied);
+    this.persistDerived();
     return applied;
   }
 
@@ -353,43 +418,141 @@ export class HarborService {
   }
 
   /**
-   * Rebuild derived overlays from canonical memories.
-   * Does not touch EventStore. Deterministic given the same cells + time.
+   * Drop derived state only. Never touches EventStore / Core.
+   * Durable files are removed; canonical replay is required to rebuild.
    */
-  rebuildFromCanonical(memories: MemoryCell[], actor: HarborActor, now = nowIso()) {
+  clearDerived(actor: HarborActor): { class: typeof HARBOR_CLASS; status: DerivedIndexStatus } {
     assertCapability(actor, "DERIVED_WRITE");
     this.epistemic.clear();
     this.contradictions.clear();
     this.reflections.clear();
-    this.ensureCoreOverlay(memories, now);
-    this.scan(memories, actor, now);
-    const reflection = reflectOnMemories({
-      memories: memories.map((m) => ({
-        id: m.identity.id,
-        text: textOf(m),
-        tags: m.context.tags ?? [],
-        project: m.context.project,
-        lifecycle: m.lifecycle.state,
-        updatedAt: m.timestamps.confirmedAt,
-      })),
-      contradictions: [...this.contradictions.values()],
-      actor,
-      now,
-      id: `rebuild:${memories.map((m) => m.identity.id).sort().join(",")}`,
-    });
-    this.reflections.set(reflection.id, reflection);
-    return {
-      class: HARBOR_CLASS,
-      epistemic: this.epistemic.size,
-      contradictions: this.contradictions.size,
-      reflections: this.reflections.size,
-    };
+    this.proposals.clear();
+    this.invocations.length = 0;
+    this.rebuildGeneration = 0;
+    this.lastRebuiltAt = undefined;
+    this.derivedIndex?.clearFiles();
+    this.derivedStatus = "empty";
+    this.derivedReason = undefined;
+    return { class: HARBOR_CLASS, status: this.derivedStatus };
+  }
+
+  /**
+   * Rebuild derived overlays from canonical memories.
+   * Does not touch EventStore. Deterministic given the same cells + time.
+   * Interrupt-safe: previous ready snapshot stays on disk until the new
+   * snapshot is written atomically; a leftover marker is a known state.
+   */
+  rebuildFromCanonical(memories: MemoryCell[], actor: HarborActor, now = nowIso()) {
+    assertCapability(actor, "DERIVED_WRITE");
+    this.persistSuspended = true;
+    try {
+      this.derivedIndex?.markRebuilding();
+      this.derivedStatus = "rebuilding";
+      this.derivedReason = undefined;
+      this.rebuildGeneration += 1;
+      this.lastRebuiltAt = now;
+      this.epistemic.clear();
+      this.contradictions.clear();
+      this.reflections.clear();
+      this.ensureCoreOverlay(memories, now);
+      this.scan(memories, actor, now);
+      const reflection = reflectOnMemories({
+        memories: memories.map((m) => ({
+          id: m.identity.id,
+          text: textOf(m),
+          tags: m.context.tags ?? [],
+          project: m.context.project,
+          lifecycle: m.lifecycle.state,
+          updatedAt: m.timestamps.confirmedAt,
+        })),
+        contradictions: [...this.contradictions.values()],
+        actor,
+        now,
+        id: `rebuild:${memories.map((m) => m.identity.id).sort().join(",")}`,
+      });
+      this.reflections.set(reflection.id, reflection);
+      this.persistSuspended = false;
+      this.persistDerived();
+      return {
+        class: HARBOR_CLASS,
+        epistemic: this.epistemic.size,
+        contradictions: this.contradictions.size,
+        reflections: this.reflections.size,
+        fingerprint: this.currentFingerprint(),
+        rebuildGeneration: this.rebuildGeneration,
+        derivedIndex: this.derivedIndexInfo(),
+      };
+    } catch (err) {
+      this.derivedStatus = this.derivedIndex ? "interrupted" : this.derivedStatus;
+      this.derivedReason = err instanceof Error ? err.message : String(err);
+      throw err;
+    } finally {
+      this.persistSuspended = false;
+    }
   }
 
   private requireImport(id: string): ImportSession {
     const s = this.imports.get(id);
     if (!s) throw new Error(`Import session ${id} not found`);
     return s;
+  }
+
+  private loadFromDisk(): void {
+    if (!this.derivedIndex) {
+      this.derivedStatus = "empty";
+      return;
+    }
+    const loaded = this.derivedIndex.load();
+    this.derivedStatus = loaded.status;
+    this.derivedReason = loaded.reason;
+    if (
+      loaded.document &&
+      (loaded.status === "ready" || loaded.status === "interrupted")
+    ) {
+      this.applyDocument(loaded.document);
+    }
+  }
+
+  private applyDocument(doc: {
+    epistemic: EpistemicRecord[];
+    contradictions: ReturnType<typeof detectContradictions>;
+    reflections: ReflectionArtifact[];
+    proposals: HarborProposal[];
+    invocations: ReturnType<typeof recordInvocation>[];
+    rebuildGeneration: number;
+    rebuiltAt: string;
+  }): void {
+    this.epistemic.clear();
+    for (const e of doc.epistemic) this.epistemic.set(e.memoryId, e);
+    this.contradictions.clear();
+    for (const c of doc.contradictions) this.contradictions.set(c.id, c);
+    this.reflections.clear();
+    for (const r of doc.reflections) this.reflections.set(r.id, r);
+    this.proposals.clear();
+    for (const p of doc.proposals) this.proposals.set(p.proposalId, p);
+    this.invocations.length = 0;
+    this.invocations.push(...doc.invocations);
+    this.rebuildGeneration = doc.rebuildGeneration;
+    this.lastRebuiltAt = doc.rebuiltAt;
+  }
+
+  private persistDerived(): void {
+    if (!this.derivedIndex || this.persistSuspended) return;
+    const doc = buildDerivedDocument({
+      corePin: this.pins.corePin,
+      vaultReferenceSha: this.pins.vaultReferenceSha,
+      rebuiltAt: this.lastRebuiltAt ?? nowIso(),
+      rebuildGeneration: this.rebuildGeneration,
+      status: "ready",
+      epistemic: [...this.epistemic.values()],
+      contradictions: [...this.contradictions.values()],
+      reflections: [...this.reflections.values()],
+      proposals: [...this.proposals.values()],
+      invocations: this.invocations.slice(),
+    });
+    this.derivedIndex.save(doc);
+    this.derivedStatus = "ready";
+    this.derivedReason = undefined;
   }
 }
 

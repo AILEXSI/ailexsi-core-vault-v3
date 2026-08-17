@@ -44,3 +44,29 @@ Human confirmation produces `USER_ASSERTED`.
 Import WRITE is derived-only and requires a human after SCAN → VALIDATE → PREVIEW → CONFLICT.
 
 Existing `memory.*`, `cultivation.*`, `continuity.*` commands are unchanged.
+
+## Durable derived index
+
+**Class:** V3-DERIVED  
+**Schema:** `harbor-derived-index-v1`  
+**Not EventStore. Not Core.**
+
+Harbor persists derived overlays (epistemic, contradictions, reflections, proposals, invocations) as a versioned JSON snapshot so they survive process restart.
+
+| Concern | Owner |
+|---------|--------|
+| Canonical events / Memory | Core EventStore |
+| Derived overlays | Harbor derived index (`HARBOR_DERIVED_INDEX_PATH`, default `data/derived-index`) |
+
+Rebuild protocol:
+
+1. Write `rebuilding.marker` (previous `index.json` is retained)
+2. Replay canonical Memory cells
+3. Atomically replace `index.json`
+4. Clear the marker
+
+Known load states: `empty` | `ready` | `rebuilding` | `corrupt` | `schema_mismatch` | `interrupted`.
+
+A missing, corrupt, mismatched, or interrupted index is repaired by `harbor.rebuild` / `rebuildFromCanonical`. It never requires deleting or rewriting canonical state.
+
+CLEAR DERIVED → REPLAY CANONICAL → REBUILD DERIVED is deterministic for the rebuildable slices (epistemic, contradictions, reflections). Proposals/invocations are session-derived and are not part of the rebuild fingerprint.

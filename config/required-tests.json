@@ -1,0 +1,13 @@
+{
+  "description": "Required test files. Deleting one to obtain GREEN must fail acceptance.",
+  "files": [
+    "tests/acceptance/dual-write-guard.test.ts",
+    "tests/acceptance/foundation-gate.test.ts",
+    "tests/acceptance/no-canonical-fs-write.test.ts",
+    "tests/unit/harbor-agentic-failure.test.ts",
+    "tests/unit/harbor-harbor.test.ts",
+    "tests/unit/harbor-import.test.ts",
+    "tests/unit/harbor-rebuild.test.ts",
+    "tests/integration/ai-writeback-safety.test.ts"
+  ]
+}

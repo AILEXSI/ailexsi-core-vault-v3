@@ -64,7 +64,13 @@ export type DesktopMemoryCommand =
   | "harbor.confirm"
   | "harbor.graph"
   | "harbor.export"
-  | "harbor.import";
+  | "harbor.import"
+  | "harbor.import.validate"
+  | "harbor.import.preview"
+  | "harbor.import.conflicts"
+  | "harbor.import.confirm"
+  | "harbor.import.reject"
+  | "harbor.rebuild";
 
 export interface DesktopHostStartOptions extends CreateCoreRuntimeOptions {
   /** Optional fixed connection string (tests). */
@@ -592,7 +598,53 @@ export class DesktopHost {
   async harborImport(args: Record<string, unknown>) {
     this.requireRuntime();
     this.commandCount += 1;
-    return this.requireHarbor().importPackage(args.package as HarborExportPackage, this.actorOf(args));
+    return this.requireHarbor().beginImport(args.package as HarborExportPackage, this.actorOf(args));
+  }
+
+  async harborImportValidate(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor().validateImport(String(args.sessionId ?? ""), this.actorOf(args));
+  }
+
+  async harborImportPreview(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor().previewImport(String(args.sessionId ?? ""), this.actorOf(args));
+  }
+
+  async harborImportConflicts(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    const cells = await this.loadCells();
+    return this.requireHarbor().detectImportConflicts(
+      String(args.sessionId ?? ""),
+      cells.map((c) => ({
+        id: c.identity.id,
+        text: c.content.type === "text" ? c.content.text : JSON.stringify(c.content),
+        updatedAt: c.timestamps.confirmedAt,
+      })),
+      this.actorOf(args)
+    );
+  }
+
+  async harborImportConfirm(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor().confirmImport(String(args.sessionId ?? ""), this.actorOf(args));
+  }
+
+  async harborImportReject(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor().rejectImport(String(args.sessionId ?? ""), this.actorOf(args));
+  }
+
+  async harborRebuild(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    const cells = await this.loadCells();
+    return this.requireHarbor().rebuildFromCanonical(cells, this.actorOf(args));
   }
 }
 
@@ -690,6 +742,18 @@ export async function invokeDesktopCommand(
       return host.harborExport(args);
     case "harbor.import":
       return host.harborImport(args);
+    case "harbor.import.validate":
+      return host.harborImportValidate(args);
+    case "harbor.import.preview":
+      return host.harborImportPreview(args);
+    case "harbor.import.conflicts":
+      return host.harborImportConflicts(args);
+    case "harbor.import.confirm":
+      return host.harborImportConfirm(args);
+    case "harbor.import.reject":
+      return host.harborImportReject(args);
+    case "harbor.rebuild":
+      return host.harborRebuild(args);
     default: {
       const _exhaustive: never = command;
       throw new Error(`Unknown desktop command: ${String(_exhaustive)}`);

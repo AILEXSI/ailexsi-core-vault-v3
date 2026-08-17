@@ -1,33 +1,82 @@
 # AILEXSI Core Vault V3 — Current State
 
-> **V3 bootstrap:** successor of `AILEXSI/ailexsi-core-vault-v2` @ `d684aa4a3c292c1d1f1587a68371589437b68055`.  
-> **Harbor:** derived cognitive layer (`packages/harbor`, DesktopHost `harbor.*`). Core still canonical.
+Documentation describes reality. GREEN is evidence, not the product.
 
-> **Documentation is not proof.**  
-> The authoritative freeze identity is the **Git annotated tag** resolving to the tested commit (`tag^{}`).
+## CURRENT HEAD
 
-## Latest GREEN (historical V2, inherited)
+See `git rev-parse HEAD`. Last Harbor slice commit is on `main`.
 
-| Field | Value |
-|--------|--------|
-| Phase | **4** — Deterministic Retrieval + Context |
-| Tag | `v2.2.0-retrieval-context-green` |
-| Tested SHA | `4907119572bfab5f0589f966203c9882e37fea33` |
-| Status | GREEN / FROZEN |
+## LATEST VERIFIED SHA
 
-Verify:
+| Kind | SHA | Note |
+|------|-----|------|
+| V3 bootstrap tag | `v3.0.0-v2-baseline` → `8a29278760021c63320d1bd4284c21dae5058445` | V2 copy + identity only |
+| Harbor core | `219dbfa72bb137c0b7a5957e7983c903e668cc17` | derived package + unit tests |
+| This worktree | `git rev-parse HEAD` | after import/UX/agentic slice |
 
-```text
-git rev-parse v2.2.0-retrieval-context-green^{}
-# expected: 4907119572bfab5f0589f966203c9882e37fea33
-```
+## LATEST GREEN TAG
 
-## Prior freezes (immutable)
+| Tag | Meaning |
+|-----|---------|
+| `v3.0.0-v2-baseline` | V3 created from verified V2 |
+| `v2.2.0-retrieval-context-green` | Historical V2 freeze (inherited, not a V3 tag) |
 
-| Phase | Tag | SHA |
-|-------|-----|-----|
-| 3 Desktop Memory E2E | `v2.1.0-desktop-memory-green` | `979537472b1f8c1b265659294377b275dc5d0019` |
-| Memory Foundation | `v2.0.0-memory-foundation-green` | `fa0f644d22ec075798c7d873d7cee7c7e3f334f1` |
+No new V3 GREEN tag is minted until a dedicated freeze is authorized.
+
+## IMPLEMENTED
+
+- Core Memory command path (V2 inherited): create/get/update/archive/restore/history
+- Retrieval + V2 context bundle
+- Cultivation accept/reject/defer (human; EventStore only on accept)
+- Harbor epistemic overlays (FACT default for Core cells; confirm → USER_ASSERTED, never silent FACT)
+- Agency defaults; AI cannot self-grant CANONICAL_COMMIT
+- Contradiction detect/resolve (human resolution only)
+- Temporal is_true / was_true overlay
+- ContextPackage with inclusion reasons and reproducible key
+- Reflection with evidence IDs (rule-based, works without an LLM)
+- Provider invocation log (mock)
+- Staged import: SCAN → VALIDATE → PREVIEW → CONFLICT → CONFIRM → WRITE (derived only)
+- Rebuild derived from canonical without touching EventStore
+- Agentic failure tests (blocked unauthorized write, flagged contradiction, required-test inventory)
+- Desktop nav: Home/Harbor, Memory, Context, Reflection, Cultivation, Connectome, Continuity, Evidence, Settings
+
+## PARTIAL
+
+- Harbor derived store is **in-process** (exportable; not durable across restarts)
+- Desktop Context/Reflection/Connectome/Continuity panels are host-backed or honest placeholders
+- Harbor export does not copy canonical Memory bodies (IDs + derived overlays only)
+- Continuity v1 schema unchanged; Harbor has a separate export schema
+- Evidence UI does not render run files (honest: disk-only)
+
+## PLANNED
+
+- Durable derived index (rebuildable, non-canonical)
+- Live Harbor+Postgres dedicated gate
+- Full contradiction/confirm UI (not JSON dump)
+- Core Relation aggregate
+- Physics / Knowledge / Learning / Trust / Scheduler
+- External actions
+
+## KNOWN LIMITATIONS
+
+- Multiple Embedded-Postgres instances can exhaust Windows sockets if verification is stacked
+- `tsc -b` still reports pre-existing desktop/JSX project issues; Vitest is the executable suite
+- Import WRITE is derived-only; it never creates Core Memory cells
+- Preference contradiction heuristic is literal (`user prefers X`)
+
+## NEXT BUILD SLICE
+
+Durable rebuildable derived index **or** a dedicated Harbor+Postgres live gate — not more mock surfaces.
+
+## ARCHITECTURAL INVARIANTS
+
+1. Core owns canonical identity, events, replay.
+2. Harbor is V3-DERIVED. Filesystem is not a second EventStore.
+3. AI default: READ_ONLY + DERIVED_WRITE + CANONICAL_PROPOSAL.
+4. Inference never becomes FACT. Human confirm → USER_ASSERTED.
+5. Import cannot skip SCAN → VALIDATE → PREVIEW → CONFLICT → CONFIRM.
+6. Acceptance tests may not be deleted to obtain GREEN (`config/required-tests.json`).
+7. Phase 08 Physics is absent.
 
 ## Pins
 
@@ -35,32 +84,4 @@ git rev-parse v2.2.0-retrieval-context-green^{}
 |--|-----|
 | Core | `652d01eb06dd0841c3b475023883675af6dcd698` |
 | Vault V1 | `061e444389090c54e431b0e8243e82764f2c198e` |
-
-Source: `config/baselines.json`
-
-## Evidence
-
-Machine-readable runs (when acceptance is executed):
-
-```text
-evidence/runs/<testedSha>.acceptance.json
-```
-
-See `evidence/README.md`.
-
-## Harbor (this generation)
-
-| Slice | Status |
-|-------|--------|
-| Epistemic overlays + confirm-to-USER_ASSERTED | VERIFIED (unit) |
-| Agency boundary | VERIFIED (unit) |
-| Contradiction detect/resolve (no auto-decide) | VERIFIED (unit) |
-| Context package (reasons, budget, reproducible) | VERIFIED (unit) |
-| Reflection (derived, evidenced) | VERIFIED (unit) |
-| Provider invocation log | VERIFIED (unit) |
-| Inspectable export/import (no Core write) | VERIFIED (unit) |
-| Harbor Connectome wrap | VERIFIED (unit) |
-| Desktop `harbor.*` commands + Harbor UI | PARTIAL |
-| Live Harbor+Postgres gate | NOT STARTED |
-
-Phase 08 Physics: **ABSENT**
+| V2 source | `d684aa4a3c292c1d1f1587a68371589437b68055` |

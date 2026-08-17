@@ -130,6 +130,9 @@ export function buildAcceptanceEvidence(input) {
     auditOnly: {
       generatedAt,
     },
+    ...(input.gitDirtyState != null ? { gitDirtyState: input.gitDirtyState } : {}),
+    ...(input.v3Version != null ? { v3Version: input.v3Version } : {}),
+    ...(input.testCommands != null ? { testCommands: input.testCommands } : {}),
   };
 }
 

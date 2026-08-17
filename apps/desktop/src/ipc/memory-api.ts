@@ -28,7 +28,13 @@ export type DesktopHostCommandName =
   | "harbor.confirm"
   | "harbor.graph"
   | "harbor.export"
-  | "harbor.import";
+  | "harbor.import"
+  | "harbor.import.validate"
+  | "harbor.import.preview"
+  | "harbor.import.conflicts"
+  | "harbor.import.confirm"
+  | "harbor.import.reject"
+  | "harbor.rebuild";
 
 /** @deprecated alias — Memory-only surface retained for callers */
 export type MemoryCommandName =

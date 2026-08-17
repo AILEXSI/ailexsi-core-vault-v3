@@ -4,121 +4,97 @@ import { CultivationPanel } from "./components/CultivationPanel";
 import { HarborPanel } from "./components/HarborPanel";
 
 type DomainView =
-  | "overview"
+  | "harbor"
   | "memory"
-  | "insights"
-  | "decisions"
-  | "questions"
-  | "tensions"
-  | "projects"
+  | "context"
+  | "reflection"
+  | "cultivation"
   | "connectome"
   | "continuity"
-  | "cultivation"
-  | "harbor";
+  | "evidence"
+  | "settings";
 
-const DOMAINS: Array<{
+const NAV: Array<{
   id: DomainView;
   label: string;
-  classification: "CORE-BACKED" | "V2-DERIVED" | "V2-LOCAL" | "FUTURE CORE DOMAIN";
+  classification: "CORE-BACKED" | "V2-DERIVED" | "V3-DERIVED" | "V2-LOCAL";
   status: "VERIFIED" | "PARTIAL" | "PLANNED";
   blurb: string;
 }> = [
+  {
+    id: "harbor",
+    label: "Home / Harbor",
+    classification: "V3-DERIVED",
+    status: "PARTIAL",
+    blurb: "Docking view. Derived overlays around Core Memory. Host required for live state.",
+  },
   {
     id: "memory",
     label: "Memory",
     classification: "CORE-BACKED",
     status: "VERIFIED",
-    blurb:
-      "Canonical Memory via DesktopHost bridge → Core MemoryDomain. UI reads V2 read models only.",
+    blurb: "Canonical Memory via DesktopHost → Core MemoryDomain.",
   },
   {
-    id: "insights",
-    label: "Insights",
-    classification: "V2-LOCAL",
+    id: "context",
+    label: "Context",
+    classification: "V3-DERIVED",
     status: "PARTIAL",
-    blurb:
-      "Presentation label preserved from Vault reference. Not a Core aggregate in Phase 07.",
+    blurb: "Context packages with inclusion reasons. Uses existing retrieval plus Harbor assembly.",
   },
   {
-    id: "decisions",
-    label: "Decisions",
-    classification: "V2-LOCAL",
+    id: "reflection",
+    label: "Reflection",
+    classification: "V3-DERIVED",
     status: "PARTIAL",
-    blurb: "Conceptual surface only. Canonical writes require Core command path.",
-  },
-  {
-    id: "questions",
-    label: "Questions",
-    classification: "V2-LOCAL",
-    status: "PARTIAL",
-    blurb: "Conceptual surface only.",
-  },
-  {
-    id: "tensions",
-    label: "Tensions",
-    classification: "V2-LOCAL",
-    status: "PARTIAL",
-    blurb: "Conceptual surface only.",
-  },
-  {
-    id: "projects",
-    label: "Projects",
-    classification: "V2-LOCAL",
-    status: "PARTIAL",
-    blurb: "Conceptual surface only.",
-  },
-  {
-    id: "connectome",
-    label: "Connectome",
-    classification: "V2-DERIVED",
-    status: "PARTIAL",
-    blurb:
-      "MVP graph from Memory relationRefs + provenance parents. No Core Relation aggregate (PLANNED).",
-  },
-  {
-    id: "continuity",
-    label: "Continuity",
-    classification: "V2-DERIVED",
-    status: "PARTIAL",
-    blurb:
-      "BACKEND GREEN (package/rehydrate). UI panel not exposed — host commands only.",
+    blurb: "Derived observations with evidence IDs. Not canonical until a human confirms.",
   },
   {
     id: "cultivation",
     label: "Cultivation",
     classification: "V2-LOCAL",
     status: "PARTIAL",
-    blurb:
-      "BACKEND GREEN + UI co-creation surface (pending DCS freeze). Mock LLM; human accept only.",
+    blurb: "Proposals remain derived. Human accept / reject / defer only.",
   },
   {
-    id: "harbor",
-    label: "Harbor",
+    id: "connectome",
+    label: "Connectome",
     classification: "V2-DERIVED",
     status: "PARTIAL",
-    blurb:
-      "Derived cognitive harbor: epistemic overlays, context packages, contradictions, reflection, agency, inspectable export. Not a second Core.",
+    blurb: "Presentation graph. No Core Relation aggregate.",
+  },
+  {
+    id: "continuity",
+    label: "Continuity",
+    classification: "V2-DERIVED",
+    status: "PARTIAL",
+    blurb: "Portable packages via host commands. Harbor export is inspectable JSON.",
+  },
+  {
+    id: "evidence",
+    label: "Evidence",
+    classification: "V3-DERIVED",
+    status: "PARTIAL",
+    blurb: "Acceptance evidence lives on disk from scripts/acceptance-gate.mjs. The UI does not invent GREEN.",
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    classification: "V2-LOCAL",
+    status: "PARTIAL",
+    blurb: "Pins, agency defaults, honest connection mode.",
   },
 ];
 
 export function App() {
-  const [view, setView] = useState<DomainView>("overview");
-  const active = useMemo(
-    () => DOMAINS.find((d) => d.id === view) ?? null,
-    [view]
-  );
+  const [view, setView] = useState<DomainView>("harbor");
+  const active = useMemo(() => NAV.find((d) => d.id === view) ?? null, [view]);
 
   return (
     <div className="app">
       <nav className="nav">
-        <h1>Vault V3</h1>
-        <button
-          className={view === "overview" ? "active" : ""}
-          onClick={() => setView("overview")}
-        >
-          Overview
-        </button>
-        {DOMAINS.map((d) => (
+        <h1>Vault Harbor</h1>
+        {NAV.map((d) => (
           <button
             key={d.id}
             className={view === d.id ? "active" : ""}
@@ -129,54 +105,20 @@ export function App() {
         ))}
       </nav>
       <main className="main">
-        {view === "overview" ? (
-          <>
-            <h2>AILEXSI Core Vault V3</h2>
-            <p className="muted">
-              Core is the Cortex. V3 is the harbor: derived cognition, context,
-              reflection, provenance and controlled agency around canonical Memory.
-            </p>
-            <div className="card">
-              <h2>Baselines</h2>
-              <p className="muted">
-                <code>CORE 652d01eb06dd0841c3b475023883675af6dcd698</code>
-                <br />
-                <code>VAULT REF 061e444389090c54e431b0e8243e82764f2c198e</code>
-              </p>
-            </div>
-            <div className="card">
-              <h2>Desktop path (Slice A + Bridge)</h2>
-              <p className="muted">
-                UI → Tauri/HTTP Bridge → long-lived DesktopHost →
-                MemoryCommandAdapter → PostgresEventStore → Projection → Read
-                Model. Start host: <code>npm run desktop:host</code>
-              </p>
-            </div>
-            <div className="card">
-              <h2>Domain map</h2>
-              {DOMAINS.map((d) => (
-                <p key={d.id} className="muted">
-                  <strong>{d.label}</strong>{" "}
-                  <span className="badge core">{d.classification}</span>
-                  <span className="badge v2">{d.status}</span>
-                </p>
-              ))}
-            </div>
-            <div className="card">
-              <h2>Not implemented (honest)</h2>
-              <p className="muted">
-                <span className="badge planned">PLANNED</span> Physics · Knowledge
-                domain · Learning · Trust · Scheduler · Core Relation aggregate ·
-                multi-agent cognition
-              </p>
-            </div>
-          </>
-        ) : active?.id === "memory" ? (
-          <MemoryPanel />
-        ) : active?.id === "cultivation" ? (
-          <CultivationPanel />
-        ) : active?.id === "harbor" ? (
+        {view === "harbor" ? (
           <HarborPanel />
+        ) : view === "memory" ? (
+          <MemoryPanel />
+        ) : view === "cultivation" ? (
+          <CultivationPanel />
+        ) : view === "context" ? (
+          <HarborPanel focus="context" />
+        ) : view === "reflection" ? (
+          <HarborPanel focus="reflection" />
+        ) : view === "evidence" ? (
+          <EvidenceHonesty />
+        ) : view === "settings" ? (
+          <SettingsHonesty />
         ) : (
           active && (
             <div className="card">
@@ -186,10 +128,55 @@ export function App() {
                 <span className="badge v2">{active.status}</span>
               </p>
               <p className="muted">{active.blurb}</p>
+              <p className="muted">
+                No simulated graph or continuity preview. Use the host commands
+                when the desktop host is running.
+              </p>
             </div>
           )
         )}
       </main>
+    </div>
+  );
+}
+
+function EvidenceHonesty() {
+  return (
+    <div className="card">
+      <h2>Evidence</h2>
+      <p>
+        <span className="badge v2">on disk</span>
+        <span className="badge core">not invented here</span>
+      </p>
+      <p className="muted">
+        Machine-readable acceptance lives in <code>evidence/runs/&lt;sha&gt;.acceptance.json</code>
+        after <code>npm run acceptance</code>. This screen does not rewrite those
+        files and does not display a GREEN badge unless that file exists on the
+        machine running the gate.
+      </p>
+      <p className="muted">
+        Required fields include tested SHA, Core pin, gates, and status. Harbor
+        cannot delete or edit evidence runs.
+      </p>
+    </div>
+  );
+}
+
+function SettingsHonesty() {
+  return (
+    <div className="card">
+      <h2>Settings</h2>
+      <p className="muted">
+        Core pin <code>652d01eb06dd0841c3b475023883675af6dcd698</code>
+      </p>
+      <p className="muted">
+        AI default capabilities: READ_ONLY, DERIVED_WRITE, CANONICAL_PROPOSAL.
+        Canonical commit and external action require a human.
+      </p>
+      <p className="muted">
+        Desktop host: <code>npm run desktop:host</code> — without it, Memory and
+        Harbor live calls fail honestly.
+      </p>
     </div>
   );
 }

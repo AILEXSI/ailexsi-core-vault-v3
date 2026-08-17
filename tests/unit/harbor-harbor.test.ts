@@ -154,7 +154,7 @@ describe("Harbor proposals + export", () => {
     expect(rejected.resultingEventIds).toEqual([]);
   });
 
-  it("export is inspectable and import does not require Core", () => {
+  it("export is inspectable; one-shot import does not write", () => {
     const harbor = new HarborService({
       corePin: "652d01eb06dd0841c3b475023883675af6dcd698",
       vaultReferenceSha: "061e444389090c54e431b0e8243e82764f2c198e",
@@ -163,8 +163,8 @@ describe("Harbor proposals + export", () => {
     expect(verifyHarborExport(pkg)).toBe(true);
     expect(pkg.integrity.sha256).toMatch(/^[a-f0-9]{64}$/);
     const other = new HarborService({ corePin: "x", vaultReferenceSha: "y" });
-    const result = other.importPackage(pkg, HUMAN);
-    expect(result.ok).toBe(true);
-    expect(result.inspection.canonicalCount).toBe(1);
+    const scanned = other.importPackage(pkg, HUMAN);
+    expect(scanned.stage).toBe("SCANNED");
+    expect(other.epistemic.size).toBe(0);
   });
 });

@@ -7,5 +7,6 @@ export * from "./context-assembly.js";
 export * from "./reflection.js";
 export * from "./provider.js";
 export * from "./export.js";
+export * from "./import-pipeline.js";
 export * from "./connectome-harbor.js";
 export * from "./service.js";

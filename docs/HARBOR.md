@@ -37,6 +37,10 @@ Human confirmation produces `USER_ASSERTED`.
 
 `harbor.snapshot` `harbor.scan` `harbor.context` `harbor.reflect`  
 `harbor.contradiction.resolve` `harbor.propose` `harbor.proposal.decide`  
-`harbor.confirm` `harbor.graph` `harbor.export` `harbor.import`
+`harbor.confirm` `harbor.graph` `harbor.export`  
+`harbor.import` (scan only) `harbor.import.validate` `harbor.import.preview`  
+`harbor.import.conflicts` `harbor.import.confirm` `harbor.import.reject` `harbor.rebuild`
+
+Import WRITE is derived-only and requires a human after SCAN → VALIDATE → PREVIEW → CONFLICT.
 
 Existing `memory.*`, `cultivation.*`, `continuity.*` commands are unchanged.

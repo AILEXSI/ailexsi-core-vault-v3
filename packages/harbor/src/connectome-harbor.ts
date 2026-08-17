@@ -45,14 +45,22 @@ export function buildHarborConnectome(opts: {
     label: n.label,
     origin: "CANONICAL_REFERENCE",
   }));
-  const edges: HarborGraphEdge[] = baseline.edges.map((e) => ({
-    id: e.id,
-    from: e.from,
-    to: e.to,
-    type: e.type === "derived_from" ? "DERIVED_FROM" : "RELATES_TO",
-    origin: e.source === "CORE-BACKED" ? "CANONICAL_REFERENCE" : "DERIVED",
-    evidence: e.reason,
-  }));
+  const edges: HarborGraphEdge[] = baseline.edges.map((e) => {
+    const evidence = e.reason;
+    const derived = e.source !== "CORE-BACKED";
+    return {
+      id: e.id,
+      from: e.from,
+      to: e.to,
+      type: e.type === "derived_from" ? "DERIVED_FROM" : "RELATES_TO",
+      origin: !derived
+        ? "CANONICAL_REFERENCE"
+        : evidence
+          ? "DERIVED"
+          : "INFERRED",
+      evidence,
+    };
+  });
 
   for (const c of opts.contradictions ?? []) {
     nodes.push({

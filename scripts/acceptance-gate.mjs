@@ -131,6 +131,26 @@ gate(
   baselines.vaultReference.sha
 );
 gate(
+  "REQUIRED TESTS PRESENT",
+  (() => {
+    const inv = path.join(root, "config/required-tests.json");
+    if (!existsSync(inv)) return false;
+    const files = JSON.parse(readFileSync(inv, "utf8")).files ?? [];
+    return files.every((f) => existsSync(path.join(root, f)));
+  })()
+);
+gate(
+  "HARBOR IMPORT PIPELINE PRESENT",
+  existsSync(path.join(root, "packages/harbor/src/import-pipeline.ts")) &&
+    existsSync(path.join(root, "packages/harbor/src/service.ts")) &&
+    readFileSync(path.join(root, "packages/harbor/src/service.ts"), "utf8").includes(
+      "confirmImport"
+    ) &&
+    readFileSync(path.join(root, "packages/harbor/src/service.ts"), "utf8").includes(
+      "beginImport"
+    )
+);
+gate(
   "V2 STRUCTURE PRESENT",
   existsSync(path.join(root, "packages/command-adapter/src/index.ts")) &&
     existsSync(path.join(root, "packages/command-adapter/src/core-runtime.ts")) &&
@@ -693,6 +713,11 @@ try {
     softLiveNames: [...softLive],
     phase: "4",
     tag,
+    gitDirtyState: execSync("git status --porcelain", { cwd: root }).toString().trim()
+      ? "dirty"
+      : "clean",
+    v3Version: JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).version,
+    testCommands: ["npm test", "npm run acceptance", "npm run verify:live"],
   });
   assertEvidenceShape(payload);
   const { path: evidencePath } = writeAcceptanceEvidence(root, payload);

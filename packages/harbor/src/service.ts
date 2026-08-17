@@ -12,8 +12,17 @@ import { temporalFromMemory } from "./temporal.js";
 import { assembleContextPackage, type ContextAssemblyInput } from "./context-assembly.js";
 import { reflectOnMemories } from "./reflection.js";
 import { MockHarborProvider, recordInvocation, type HarborProvider } from "./provider.js";
-import { buildHarborExport, inspectHarborExport, verifyHarborExport, type HarborExportPackage } from "./export.js";
+import { buildHarborExport, inspectHarborExport, type HarborExportPackage } from "./export.js";
 import { buildHarborConnectome } from "./connectome-harbor.js";
+import {
+  awaitConfirm,
+  conflictImportSession,
+  createImportSession,
+  previewImportSession,
+  scanImportPayload,
+  validateImportSession,
+  type ImportSession,
+} from "./import-pipeline.js";
 import { HARBOR_CLASS, HARBOR_VERSION, type ContradictionResolution, type EpistemicRecord, type HarborActor, type HarborProposal, type HarborProposalType, type ReflectionArtifact } from "./types.js";
 
 function nowIso(): string {
@@ -30,6 +39,7 @@ export class HarborService {
   readonly reflections = new Map<string, ReflectionArtifact>();
   readonly proposals = new Map<string, HarborProposal>();
   readonly invocations: ReturnType<typeof recordInvocation>[] = [];
+  readonly imports = new Map<string, ImportSession>();
   readonly provider: HarborProvider;
 
   constructor(
@@ -49,6 +59,13 @@ export class HarborService {
       reflections: [...this.reflections.values()],
       proposals: [...this.proposals.values()],
       invocations: this.invocations.slice(),
+      imports: [...this.imports.values()].map((s) => ({
+        id: s.id,
+        stage: s.stage,
+        issues: s.issues,
+        preview: s.preview,
+        conflictCount: s.conflicts.length,
+      })),
     };
   }
 
@@ -259,17 +276,120 @@ export class HarborService {
     });
   }
 
-  importPackage(pkg: HarborExportPackage, actor: HarborActor): { ok: boolean; inspection: ReturnType<typeof inspectHarborExport> } {
+  /**
+   * One-shot import is forbidden. Returns a scanned session only.
+   * Call validate → preview → conflicts → confirm to write derived state.
+   */
+  importPackage(pkg: HarborExportPackage, actor: HarborActor): ImportSession {
+    return this.beginImport(pkg, actor);
+  }
+
+  beginImport(raw: unknown, actor: HarborActor, now = nowIso()): ImportSession {
     assertCapability(actor, "DERIVED_WRITE");
-    if (!verifyHarborExport(pkg)) {
-      return { ok: false, inspection: inspectHarborExport(pkg) };
+    const session = scanImportPayload(raw, createImportSession(now));
+    this.imports.set(session.id, session);
+    return session;
+  }
+
+  validateImport(sessionId: string, actor: HarborActor): ImportSession {
+    assertCapability(actor, "DERIVED_WRITE");
+    const cur = this.requireImport(sessionId);
+    const next = validateImportSession(cur, this.pins.corePin);
+    this.imports.set(sessionId, next);
+    return next;
+  }
+
+  previewImport(sessionId: string, actor: HarborActor): ImportSession {
+    assertCapability(actor, "READ_ONLY");
+    const next = previewImportSession(this.requireImport(sessionId));
+    this.imports.set(sessionId, next);
+    return next;
+  }
+
+  detectImportConflicts(
+    sessionId: string,
+    existing: Array<{ id: string; text: string; updatedAt?: string }>,
+    actor: HarborActor,
+    now = nowIso()
+  ): ImportSession {
+    assertCapability(actor, "DERIVED_WRITE");
+    const next = conflictImportSession(this.requireImport(sessionId), existing, actor, now);
+    this.imports.set(sessionId, next);
+    return next;
+  }
+
+  confirmImport(sessionId: string, actor: HarborActor, now = nowIso()): ImportSession {
+    assertCapability(actor, "DERIVED_WRITE");
+    if (actor.kind !== "human") {
+      throw new Error("Import WRITE requires explicit human confirmation");
     }
+    const waiting = awaitConfirm(this.requireImport(sessionId));
+    if (waiting.stage === "BLOCKED" || !waiting.pkg) {
+      this.imports.set(sessionId, waiting);
+      return waiting;
+    }
+    const pkg = waiting.pkg;
     for (const e of pkg.epistemic) this.epistemic.set(e.memoryId, e);
     for (const c of pkg.contradictions) this.contradictions.set(c.id, c);
     for (const r of pkg.reflections) this.reflections.set(r.id, r);
     for (const p of pkg.proposals) this.proposals.set(p.proposalId, p);
     this.invocations.push(...pkg.invocations);
-    return { ok: true, inspection: inspectHarborExport(pkg) };
+    const applied: ImportSession = {
+      ...waiting,
+      stage: "APPLIED",
+      confirmedBy: actor,
+      appliedAt: now,
+    };
+    this.imports.set(sessionId, applied);
+    return applied;
+  }
+
+  rejectImport(sessionId: string, actor: HarborActor): ImportSession {
+    assertCapability(actor, "DERIVED_WRITE");
+    const cur = this.requireImport(sessionId);
+    const next: ImportSession = { ...cur, stage: "REJECTED" };
+    this.imports.set(sessionId, next);
+    return next;
+  }
+
+  /**
+   * Rebuild derived overlays from canonical memories.
+   * Does not touch EventStore. Deterministic given the same cells + time.
+   */
+  rebuildFromCanonical(memories: MemoryCell[], actor: HarborActor, now = nowIso()) {
+    assertCapability(actor, "DERIVED_WRITE");
+    this.epistemic.clear();
+    this.contradictions.clear();
+    this.reflections.clear();
+    this.ensureCoreOverlay(memories, now);
+    this.scan(memories, actor, now);
+    const reflection = reflectOnMemories({
+      memories: memories.map((m) => ({
+        id: m.identity.id,
+        text: textOf(m),
+        tags: m.context.tags ?? [],
+        project: m.context.project,
+        lifecycle: m.lifecycle.state,
+        updatedAt: m.timestamps.confirmedAt,
+      })),
+      contradictions: [...this.contradictions.values()],
+      actor,
+      now,
+      id: `rebuild:${memories.map((m) => m.identity.id).sort().join(",")}`,
+    });
+    this.reflections.set(reflection.id, reflection);
+    return {
+      class: HARBOR_CLASS,
+      epistemic: this.epistemic.size,
+      contradictions: this.contradictions.size,
+      reflections: this.reflections.size,
+    };
+  }
+
+  private requireImport(id: string): ImportSession {
+    const s = this.imports.get(id);
+    if (!s) throw new Error(`Import session ${id} not found`);
+    return s;
   }
 }
 

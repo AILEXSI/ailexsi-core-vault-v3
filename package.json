@@ -1,0 +1,65 @@
+{
+  "name": "ailexsi-core-vault-v3",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AILEXSI Core Vault V3 \u2014 successor of verified V2 baseline on Core Cortex",
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "setup:core": "node scripts/setup-core-deps.mjs",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:probe": "node scripts/probe-postgres.mjs",
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run --config vitest.config.ts --exclude tests/integration/live-postgres-memory.test.ts --exclude tests/integration/desktop-command-path.test.ts --exclude tests/integration/desktop-bridge-http.test.ts --exclude tests/integration/memory-foundation-gate.test.ts --exclude tests/integration/memory-query-read-model-gate.test.ts --exclude tests/integration/desktop-memory-e2e-gate.test.ts --exclude tests/integration/memory-retrieval-context-gate.test.ts --exclude tests/integration/continuity-foundation-gate.test.ts --exclude tests/integration/cultivation-foundation-gate.test.ts --exclude tests/integration/desktop-co-creation-surface-gate.test.ts",
+    "test:unit": "vitest run --config vitest.config.ts tests/unit",
+    "test:integration": "vitest run --config vitest.config.ts tests/integration --exclude tests/integration/live-postgres-memory.test.ts --exclude tests/integration/desktop-command-path.test.ts --exclude tests/integration/desktop-bridge-http.test.ts --exclude tests/integration/memory-foundation-gate.test.ts --exclude tests/integration/memory-query-read-model-gate.test.ts",
+    "test:live": "vitest run --config vitest.config.ts tests/integration/live-postgres-memory.test.ts tests/integration/memory-foundation-gate.test.ts",
+    "test:all": "vitest run --config vitest.config.ts",
+    "test:migration": "vitest run --config vitest.config.ts tests/migration",
+    "test:acceptance": "vitest run --config vitest.config.ts tests/acceptance",
+    "acceptance": "node scripts/acceptance-gate.mjs",
+    "desktop:dev": "npm run dev --prefix apps/desktop",
+    "desktop:build": "npm run build --prefix apps/desktop",
+    "test:desktop": "vitest run --config vitest.config.ts tests/integration/desktop-command-path.test.ts tests/integration/desktop-bridge-http.test.ts tests/integration/desktop-memory-e2e-gate.test.ts",
+    "test:bridge": "vitest run --config vitest.config.ts tests/integration/desktop-bridge-http.test.ts",
+    "desktop:host": "node --import ./scripts/register-aliases.mjs --import tsx scripts/desktop-host-entry.ts",
+    "desktop": "node scripts/desktop-dev.mjs",
+    "desktop:all": "node scripts/desktop-dev.mjs",
+    "test:foundation": "vitest run --config vitest.config.ts tests/integration/memory-foundation-gate.test.ts tests/acceptance/no-canonical-fs-write.test.ts",
+    "test:query": "vitest run --config vitest.config.ts tests/integration/memory-query-read-model-gate.test.ts tests/unit/memory-read-model-pagination.test.ts",
+    "test:desktop-e2e": "vitest run --config vitest.config.ts tests/integration/desktop-memory-e2e-gate.test.ts",
+    "test:retrieval": "vitest run --config vitest.config.ts tests/integration/memory-retrieval-context-gate.test.ts tests/unit/memory-retrieval.test.ts",
+    "test:continuity": "vitest run --config vitest.config.ts tests/integration/continuity-foundation-gate.test.ts tests/unit/continuity-v1.test.ts tests/unit/continuity.test.ts",
+    "test:cultivation": "vitest run --config vitest.config.ts tests/integration/cultivation-foundation-gate.test.ts tests/unit/cultivation-foundation.test.ts tests/integration/ai-writeback-safety.test.ts",
+    "test:dcs": "vitest run --config vitest.config.ts tests/integration/desktop-co-creation-surface-gate.test.ts tests/unit/desktop-co-creation-client.test.ts",
+    "verify:live": "node scripts/live-verification.mjs"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "embedded-postgres": "^18.4.0-beta.17",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4",
+    "tsx": "^4.19.2"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.36.0",
+    "postgres": "^3.4.5",
+    "yaml": "^2.6.0",
+    "zod": "^3.23.8"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AILEXSI/ailexsi-core-vault-v3.git"
+  },
+  "license": "MIT",
+  "author": "AILEXSI"
+}

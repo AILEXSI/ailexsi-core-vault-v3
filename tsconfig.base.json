@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@ailexsi/v2-command-adapter": ["packages/command-adapter/src/index.ts"],
+      "@ailexsi/v2-read-models": ["packages/read-models/src/index.ts"],
+      "@ailexsi/v2-cultivation": ["packages/cultivation/src/index.ts"],
+      "@ailexsi/v2-continuity": ["packages/continuity/src/index.ts"],
+      "@ailexsi/v2-migration": ["packages/migration/src/index.ts"],
+      "@ailexsi/v2-connectome": ["packages/connectome/src/index.ts"],
+      "@ailexsi/v2-test-kit": ["packages/test-kit/src/index.ts"],
+      "@ailexsi/contracts": [".deps/ailexsi-core/packages/contracts/src/index.ts"],
+      "@ailexsi/memory": [".deps/ailexsi-core/packages/core/memory/src/index.ts"],
+      "@ailexsi/eventstore": [".deps/ailexsi-core/packages/infrastructure/eventstore/src/index.ts"],
+      "@ailexsi/persistence": [".deps/ailexsi-core/packages/infrastructure/persistence/src/index.ts"],
+      "@ailexsi/projections": [".deps/ailexsi-core/packages/infrastructure/projections/src/index.ts"]
+    }
+  }
+}

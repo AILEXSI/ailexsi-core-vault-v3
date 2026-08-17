@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "phase": "continuity-v1",
+  "status": "GREEN",
+  "exitCode": 0,
+  "testedSha": "141fe87c8baad87fdb3a2896bee2431397d1c70c",
+  "originMainSha": "141fe87c8baad87fdb3a2896bee2431397d1c70c",
+  "headsIdentical": true,
+  "tag": "v2.3.0-continuity-green",
+  "corePin": "652d01eb06dd0841c3b475023883675af6dcd698",
+  "vaultPin": "061e444389090c54e431b0e8243e82764f2c198e",
+  "environment": {
+    "platform": "linux",
+    "livePostgres": true,
+    "desktopPath": true
+  },
+  "gates": [
+    {
+      "name": "CORE BASELINE IDENTIFIED",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "VAULT BASELINE IDENTIFIED",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "V2 STRUCTURE PRESENT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "DESKTOP HOST + IPC SURFACE PRESENT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "DATABASE CONFIG VERIFIED",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "CORE CHECKOUT PINNED",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "NO MODIFICATION OF CORE CHECKOUT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "VAULT CHECKOUT PINNED OR ABSENT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "NO MODIFICATION OF VAULT REFERENCE CHECKOUT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "NO DUAL-WRITE PATH DETECTED",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "PHASE 08 CODE PRESENT: NO",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "NO SILENT TEST SKIPS IN SUITE",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "NO PER-COMMAND createCoreRuntime IN DESKTOP HOST",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "UNIT+MOCK INTEGRATION TESTS",
+      "ok": true,
+      "detail": "Windows live acceptance GREEN"
+    },
+    {
+      "name": "LIVE POSTGRES + CORE EVENTSTORE",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "COMMAND ADAPTER CREATES MEMORY VIA CORE EVENTSTORE",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "DESKTOP COMMAND-PATH SUITE",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "DESKTOP PATH REACHES PostgresEventStore",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "DESKTOP AAS-54 REPLAY",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "DESKTOP HTTP BRIDGE SUITE",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "BRIDGE REACHES PostgresEventStore",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "MEMORY FOUNDATION GATE",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "MEMORY FOUNDATION FS AUDIT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "MEMORY QUERY + READ-MODEL GATE",
+      "ok": true,
+      "detail": "QUERY PASS"
+    },
+    {
+      "name": "QUERY GATE",
+      "ok": true,
+      "detail": "PASS"
+    },
+    {
+      "name": "READ MODEL GATE",
+      "ok": true,
+      "detail": "PASS"
+    },
+    {
+      "name": "REPLAY GATE",
+      "ok": true,
+      "detail": "PASS"
+    },
+    {
+      "name": "DESKTOP MEMORY E2E GATE",
+      "ok": true,
+      "detail": "PASS"
+    },
+    {
+      "name": "DESKTOP USES PostgresEventStore",
+      "ok": true,
+      "detail": "PASS"
+    },
+    {
+      "name": "DESKTOP REPLAY IDENTICAL",
+      "ok": true,
+      "detail": "PASS"
+    },
+    {
+      "name": "DESKTOP READ NO-APPEND",
+      "ok": true,
+      "detail": "PASS"
+    },
+    {
+      "name": "MEMORY RETRIEVAL + CONTEXT GATE",
+      "ok": true,
+      "detail": "PASS"
+    },
+    {
+      "name": "CONTINUITY FOUNDATION GATE",
+      "ok": true,
+      "detail": "PASS"
+    }
+  ],
+  "summary": {
+    "failedGates": 0,
+    "hardFailed": 0,
+    "softLiveFailed": 0,
+    "totalGates": 33
+  },
+  "generatedBy": "scripts/acceptance-gate.mjs",
+  "auditOnly": {
+    "generatedAt": "2026-08-09T21:50:00.000Z"
+  },
+  "freezeNote": "Freeze artifact for Continuity Foundation v1. Authoritative Windows acceptance GREEN on testedSha. Gate list reconstructed for machine-readable freeze; execution authority is the Windows host run."
+}

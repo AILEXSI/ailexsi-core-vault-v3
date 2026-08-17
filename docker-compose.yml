@@ -1,0 +1,24 @@
+# Isolated V2 Core EventStore database (NOT production Core, NOT legacy vault).
+# Start: docker compose up -d
+# Then:  set CORE_DATABASE_URL=postgres://ailexsi_v2:ailexsi_v2_dev@127.0.0.1:5433/ailexsi_v2_core
+
+services:
+  v2-core-pg:
+    image: pgvector/pgvector:pg16
+    container_name: ailexsi-v2-core-pg
+    environment:
+      POSTGRES_USER: ailexsi_v2
+      POSTGRES_PASSWORD: ailexsi_v2_dev
+      POSTGRES_DB: ailexsi_v2_core
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ailexsi_v2 -d ailexsi_v2_core"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - ailexsi_v2_core_pgdata:/var/lib/postgresql/data
+
+volumes:
+  ailexsi_v2_core_pgdata:

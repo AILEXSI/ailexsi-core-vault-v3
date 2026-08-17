@@ -1,0 +1,24 @@
+{
+  "v3Repository": "AILEXSI/ailexsi-core-vault-v3",
+  "v2Repository": "AILEXSI/ailexsi-core-vault-v2",
+  "v2SourceSha": "d684aa4a3c292c1d1f1587a68371589437b68055",
+  "core": {
+    "repository": "AILEXSI/ailexsi-core",
+    "sha": "652d01eb06dd0841c3b475023883675af6dcd698",
+    "status": "PHASE 07 = ACCEPTED / GREEN",
+    "role": "Canonical Cortex dependency (READ ONLY)"
+  },
+  "vaultReference": {
+    "repository": "AILEXSI/ailexsi-core-vault",
+    "sha": "061e444389090c54e431b0e8243e82764f2c198e",
+    "role": "Capability reference baseline (READ ONLY)"
+  },
+  "rules": [
+    "CORE = READ ONLY",
+    "CURRENT VAULT = READ ONLY",
+    "V2 = HISTORICAL SOURCE BASELINE (READ ONLY)",
+    "V3 = ONLY WRITE TARGET",
+    "No Core Phase 08 implementation in this repository",
+    "No production Vault migration without explicit gate"
+  ]
+}

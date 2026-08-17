@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": [
+    "packages/**/src/**/*.ts",
+    "tests/**/*.ts",
+    "scripts/**/*.ts",
+    "apps/desktop/src/**/*.ts",
+    "apps/desktop/src/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    ".deps",
+    "dist",
+    "apps/desktop/src-tauri"
+  ]
+}

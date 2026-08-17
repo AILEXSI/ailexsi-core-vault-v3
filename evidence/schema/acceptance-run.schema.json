@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ailexsi.local/evidence/acceptance-run.schema.json",
+  "title": "AILEXSI V3 Acceptance Run Evidence",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "phase",
+    "status",
+    "testedSha",
+    "originMainSha",
+    "headsIdentical",
+    "corePin",
+    "vaultPin",
+    "environment",
+    "gates",
+    "summary",
+    "generatedBy"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "phase": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["GREEN", "VERIFICATION PENDING", "BLOCKED"]
+    },
+    "exitCode": { "type": "integer" },
+    "testedSha": { "type": "string", "minLength": 1 },
+    "originMainSha": { "type": "string" },
+    "headsIdentical": { "type": "boolean" },
+    "tag": { "type": ["string", "null"] },
+    "corePin": { "type": ["string", "null"] },
+    "vaultPin": { "type": ["string", "null"] },
+    "environment": {
+      "type": "object",
+      "required": ["platform", "livePostgres", "desktopPath"],
+      "properties": {
+        "platform": { "type": "string" },
+        "livePostgres": { "type": "boolean" },
+        "desktopPath": { "type": "boolean" }
+      }
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "ok"],
+        "properties": {
+          "name": { "type": "string" },
+          "ok": { "type": "boolean" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["failedGates", "hardFailed", "softLiveFailed"],
+      "properties": {
+        "failedGates": { "type": "integer" },
+        "hardFailed": { "type": "integer" },
+        "softLiveFailed": { "type": "integer" },
+        "totalGates": { "type": "integer" }
+      }
+    },
+    "generatedBy": { "type": "string" },
+    "auditOnly": {
+      "type": "object",
+      "properties": {
+        "generatedAt": { "type": "string" }
+      }
+    }
+  }
+}

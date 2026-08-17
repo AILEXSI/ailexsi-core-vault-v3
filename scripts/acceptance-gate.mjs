@@ -195,6 +195,29 @@ gate(
   })()
 );
 gate(
+  "HARBOR CONTEXT ASSEMBLY PRESENT",
+  (() => {
+    const ctx = path.join(root, "packages/harbor/src/context-assembly.ts");
+    const types = path.join(root, "packages/harbor/src/types.ts");
+    if (!existsSync(ctx) || !existsSync(types)) return false;
+    const ctxSrc = readFileSync(ctx, "utf8");
+    const typeSrc = readFileSync(types, "utf8");
+    return (
+      ctxSrc.includes("assembleContextFromQuery") &&
+      ctxSrc.includes("DerivedQueryService") &&
+      ctxSrc.includes("getDerivedMemory") &&
+      ctxSrc.includes("findDerivedBySource") &&
+      ctxSrc.includes("findContradictions") &&
+      ctxSrc.includes("getDerivedProvenance") &&
+      ctxSrc.includes("Never EventStore") &&
+      !ctxSrc.includes("writeFileSync") &&
+      !ctxSrc.includes("PostgresEventStore") &&
+      typeSrc.includes("harbor-context-package-v1") &&
+      typeSrc.includes("packageId")
+    );
+  })()
+);
+gate(
   "V2 STRUCTURE PRESENT",
   existsSync(path.join(root, "packages/command-adapter/src/index.ts")) &&
     existsSync(path.join(root, "packages/command-adapter/src/core-runtime.ts")) &&

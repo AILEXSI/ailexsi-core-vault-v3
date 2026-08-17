@@ -91,3 +91,23 @@ CLEAR DERIVED → REPLAY CANONICAL → REBUILD DERIVED is deterministic for the 
 | `getDerivedProvenance(id)` | Canonical source IDs for a derived record |
 
 Query results are cloned. Mutating them does not mutate the index and does not persist. Missing, corrupt, schema-mismatch, or interrupted indexes remain known states; repair is still `rebuildFromCanonical`.
+
+## Context assembly
+
+**Class:** V3-DERIVED  
+**Schema:** `harbor-context-package-v1`  
+**Capability:** `READ_ONLY`  
+**Not EventStore. ContextPackage is not persisted.**
+
+`HarborService.assemble` / `assembleFromDerived` and `assembleContextFromQuery` build an inspectable ContextPackage from the Derived Query Service.
+
+Selection uses explicit deterministic rules only (no embeddings):
+
+- direct memory ID (`selected`)
+- source-memory match (`source_match`)
+- status filter (`status_match`)
+- project / tag / query-task substring (`project_match`, `tag_match`, `task_match`)
+
+Every included item has a reason. Temporal, status, project, tag, and budget misses are recorded as exclusions. Contradictions touching selected items are attached unresolved.
+
+Identical canonical + derived state and identical request produce the same `packageId`, selection, and ordering.

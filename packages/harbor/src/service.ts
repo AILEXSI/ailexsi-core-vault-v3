@@ -9,7 +9,11 @@ import {
 import { assertCapability } from "./agency.js";
 import { detectContradictions, resolveContradiction } from "./contradiction.js";
 import { temporalFromMemory } from "./temporal.js";
-import { assembleContextPackage, type ContextAssemblyInput } from "./context-assembly.js";
+import {
+  assembleContextFromQuery,
+  type ContextAssemblyInput,
+  type ContextMemory,
+} from "./context-assembly.js";
 import { reflectOnMemories } from "./reflection.js";
 import { MockHarborProvider, recordInvocation, type HarborProvider } from "./provider.js";
 import { buildHarborExport, inspectHarborExport, type HarborExportPackage } from "./export.js";
@@ -186,9 +190,10 @@ export class HarborService {
     const before = this.epistemic.size;
     this.ensureCoreOverlay(memories, now);
     if (this.epistemic.size !== before) this.persistDerived();
-    return assembleContextPackage({
+    return assembleContextFromQuery({
+      query: this.queries(actor),
       request,
-      memories: memories.map((m) => ({
+      catalog: memories.map((m) => ({
         id: m.identity.id,
         text: textOf(m),
         project: m.context.project,
@@ -196,8 +201,25 @@ export class HarborService {
         updatedAt: m.timestamps.confirmedAt,
         lifecycle: m.lifecycle.state,
       })),
-      epistemic: this.epistemic,
-      contradictions: [...this.contradictions.values()],
+      now,
+    });
+  }
+
+  /**
+   * READ-ONLY context assembly from the derived query service.
+   * Optional catalog supplies project/tags/text; never writes EventStore.
+   */
+  assembleFromDerived(
+    request: ContextAssemblyInput,
+    actor: HarborActor,
+    now = nowIso(),
+    catalog?: ContextMemory[]
+  ) {
+    assertCapability(actor, "READ_ONLY");
+    return assembleContextFromQuery({
+      query: this.queries(actor),
+      request,
+      catalog,
       now,
     });
   }

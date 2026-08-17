@@ -113,7 +113,11 @@ export type InclusionReason =
   | "related"
   | "contradiction"
   | "reflection"
-  | "user_pinned";
+  | "user_pinned"
+  | "source_match"
+  | "status_match";
+
+export const CONTEXT_PACKAGE_SCHEMA = "harbor-context-package-v1" as const;
 
 export interface ContextPackageItem {
   memoryId: string;
@@ -128,13 +132,38 @@ export interface ContextPackageItem {
   tags: string[];
   updatedAt?: string;
   relationships: string[];
+  sourceMemoryIds: string[];
+  provenance?: {
+    sourceMemoryIds: string[];
+    sourceEventIds: string[];
+    changedBy?: HarborActor;
+    class: HarborClass;
+  };
+}
+
+export interface ContextPackageConstraints {
+  selectedMemoryIds: string[];
+  sourceMemoryIds: string[];
+  projects: string[];
+  tags: string[];
+  statuses: EpistemicStatus[];
+  temporal?: { from?: string; to?: string };
+  maxItems: number;
+  maxChars: number;
 }
 
 export interface ContextPackage {
   class: HarborClass;
+  schemaVersion: typeof CONTEXT_PACKAGE_SCHEMA;
+  packageId: string;
+  query?: string;
+  task?: string;
   request: Record<string, unknown>;
   assembledAt: string;
   items: ContextPackageItem[];
+  selectedRecords: Array<{ id: string; kind: "epistemic"; reason: InclusionReason }>;
+  sourceMemoryIds: string[];
+  constraints: ContextPackageConstraints;
   contradictions: ContradictionRecord[];
   exclusions: Array<{ memoryId: string; reason: string }>;
   budget: {

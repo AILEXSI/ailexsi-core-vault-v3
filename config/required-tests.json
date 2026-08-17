@@ -10,6 +10,7 @@
     "tests/unit/harbor-rebuild.test.ts",
     "tests/unit/harbor-derived-index.test.ts",
     "tests/unit/harbor-derived-query.test.ts",
+    "tests/unit/harbor-context-assembly.test.ts",
     "tests/integration/ai-writeback-safety.test.ts"
   ]
 }

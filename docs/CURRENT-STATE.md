@@ -14,7 +14,8 @@ See `git rev-parse HEAD`. Last Harbor slice commit is on `main`.
 | Harbor core | `219dbfa72bb137c0b7a5957e7983c903e668cc17` | derived package + unit tests |
 | Harbor import | `be6b53b176d0bd80cc733172d611af35b9517a48` | staged import + agentic + nav |
 | Durable derived index | `d7cccd21680ededcf36be1783583bf754b822611` | persist + rebuild marker |
-| This worktree | `git rev-parse HEAD` | deterministic derived query service |
+| Derived query | `4d2003b15d2d4eecc15f5174cc8cec8685d8cfda` | read-only derived query service |
+| This worktree | `git rev-parse HEAD` | deterministic context assembly |
 
 ## LATEST GREEN TAG
 
@@ -35,6 +36,7 @@ No new V3 GREEN tag is minted until a dedicated freeze is authorized.
 - Contradiction detect/resolve (human resolution only)
 - Temporal is_true / was_true overlay
 - ContextPackage with inclusion reasons and reproducible key
+- Deterministic context assembly (`harbor-context-package-v1`) over the Derived Query Service: explicit IDs/source/status/project/temporal, inspectable inclusions/exclusions, unresolved contradictions preserved
 - Reflection with evidence IDs (rule-based, works without an LLM)
 - Provider invocation log (mock)
 - Staged import: SCAN → VALIDATE → PREVIEW → CONFLICT → CONFIRM → WRITE (derived only)

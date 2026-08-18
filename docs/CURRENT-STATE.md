@@ -2,15 +2,22 @@
 
 Documentation describes reality. GREEN is evidence, not the product.
 
-## CURRENT HEAD
+This repository is **AILEXSI Core Vault V3**.
 
-See `git rev-parse HEAD`. Last Harbor slice commit is on `main`.
+## CURRENT IMPLEMENTATION HEAD
+
+`7bf0c115b1fce501f24b0b8b2266a081655c0819`
+
+Agency implementation: `d7aa20e201908dabb561c327dc4de200857d0765` (`feat: enforce explicit agency boundaries`).  
+`7bf0c11` records acceptance + `verify:live` evidence for that agency tree.
+
+Implemented capabilities run **through EXPLICIT AGENCY / PERMISSION BOUNDARY**. Agency is **GREEN / implemented**.
 
 ## LATEST VERIFIED SHA
 
 | Kind | SHA | Note |
 |------|-----|------|
-| V3 bootstrap tag | `v3.0.0-v2-baseline` → `8a29278760021c63320d1bd4284c21dae5058445` | V2 copy + identity only |
+| V3 bootstrap tag | `v3.0.0-v2-baseline` @ `0eba4dbe36cfab839da8bbcd1ddf2df10a5447d1` | tag object; peels to `8a29278760021c63320d1bd4284c21dae5058445` (V2 copy + identity only) |
 | Harbor core | `219dbfa72bb137c0b7a5957e7983c903e668cc17` | derived package + unit tests |
 | Harbor import | `be6b53b176d0bd80cc733172d611af35b9517a48` | staged import + agentic + nav |
 | Durable derived index | `d7cccd21680ededcf36be1783583bf754b822611` | persist + rebuild marker |
@@ -18,44 +25,54 @@ See `git rev-parse HEAD`. Last Harbor slice commit is on `main`.
 | Context assembly | `bcf6a82b8a932e551b5ac214985b643924ea6edb` | deterministic ContextPackage |
 | Observed reflection | `5d5b112be9bf16d5657d72c522e98931d35fdc6a` | deterministic OBSERVED reflections |
 | Cultivation proposals | `6804c377acc15fdd52ae47f4b13704c0891ea77c` | deterministic cultivation proposals |
-| Agency boundary | `d7aa20e201908dabb561c327dc4de200857d0765` | explicit agency / permission boundary |
-| Agency evidence | `7bf0c115b1fce501f24b0b8b2266a081655c0819` | acceptance + verify:live for d7aa20e |
-| This worktree | `git rev-parse HEAD` | product version consistency |
+| Agency implementation | `d7aa20e201908dabb561c327dc4de200857d0765` | explicit agency / permission boundary — GREEN |
+| Implementation HEAD | `7bf0c115b1fce501f24b0b8b2266a081655c0819` | agency evidence on `d7aa20e` |
 
 ## LATEST GREEN TAG
 
-| Tag | Meaning |
-|-----|---------|
-| `v3.0.0-v2-baseline` | V3 created from verified V2 |
-| `v2.2.0-retrieval-context-green` | Historical V2 freeze (inherited, not a V3 tag) |
+| Tag | Object | Meaning |
+|-----|--------|---------|
+| `v3.0.0-v2-baseline` | `0eba4db` | V3 created from verified V2 (bootstrap identity) |
+| `v2.2.0-retrieval-context-green` | historical V2 | Inherited V2 freeze — not a V3 implementation tag |
 
-No new V3 GREEN tag is minted until a dedicated freeze is authorized.
+No new V3 GREEN freeze tag is minted until a dedicated freeze is authorized. The bootstrap tag is **not** a product release and does **not** mean later Harbor/agency work is absent.
 
-## IMPLEMENTED
+## IMPLEMENTED (through agency)
 
 - Core Memory command path (V2 inherited): create/get/update/archive/restore/history
 - Retrieval + V2 context bundle
 - Cultivation accept/reject/defer (human; EventStore only on accept)
 - Harbor epistemic overlays (FACT default for Core cells; confirm → USER_ASSERTED, never silent FACT)
-- Agency defaults; AI cannot self-grant CANONICAL_COMMIT
-- Enforceable agency boundary (`AgencyBoundary`): frozen authority, issued grants, structured denials, audit of authorized canonical/external actions
-- Proposal generation is separate from canonical mutation; accept does not mint CANONICAL_COMMIT
+- **Agency = GREEN / implemented.** Enforceable permission boundary (`AgencyBoundary`): frozen authority, issued grants, structured denials, audit of authorized canonical/external actions. AI cannot self-grant `CANONICAL_COMMIT`.
+- Proposal generation is separate from canonical mutation; accept does not mint `CANONICAL_COMMIT`
 - Contradiction detect/resolve (human resolution only)
 - Temporal is_true / was_true overlay
 - ContextPackage with inclusion reasons and reproducible key
-- Deterministic context assembly (`harbor-context-package-v1`) over the Derived Query Service: explicit IDs/source/status/project/temporal, inspectable inclusions/exclusions, unresolved contradictions preserved
+- Deterministic context assembly (`harbor-context-package-v1`)
 - Reflection with evidence IDs (rule-based, works without an LLM)
-- Deterministic OBSERVED reflection engine (`harbor-reflection-observation-v1`) over query/context: topics, projects, goals, preference values, unresolved contradictions, unconfirmed derived, frequent references, temporal clusters, shared sources
-- Deterministic cultivation proposals (`harbor-cultivation-proposal-v1`) from observed reflections: review preference/contradiction/unconfirmed/goal/project; human ACCEPT/EDIT/REJECT/DEFER; never a Core write
+- Deterministic OBSERVED reflection engine (`harbor-reflection-observation-v1`)
+- Deterministic cultivation proposals (`harbor-cultivation-proposal-v1`); human ACCEPT/EDIT/REJECT/DEFER; never a Core write
 - Provider invocation log (mock)
 - Staged import: SCAN → VALIDATE → PREVIEW → CONFLICT → CONFIRM → WRITE (derived only)
 - Rebuild derived from canonical without touching EventStore
-- Durable derived index (`harbor-derived-index-v1`): JSON snapshot, atomic write, rebuild marker
-- CLEAR DERIVED → REPLAY CANONICAL → REBUILD is deterministic; corrupt/missing/interrupted/schema-mismatch are known states
-- Deterministic derived query service (READ-ONLY): get/list/source/status/contradictions/provenance + pagination
-- Agentic failure tests (blocked unauthorized write, flagged contradiction, required-test inventory)
-- Product version source of truth (`config/version.json` = `0.1.0`); npm / Tauri / Cargo / Harbor / evidence `v3Version` must match. Bootstrap tag `v3.0.0-v2-baseline` is not the product version. Inherited `@ailexsi/v2-*` names are module history, not a second version.
-- Desktop nav: Home/Harbor, Memory, Context, Reflection, Cultivation, Connectome, Continuity, Evidence, Settings
+- Durable derived index (`harbor-derived-index-v1`)
+- Deterministic derived query service (READ-ONLY)
+- Agentic failure tests
+- Desktop nav labels exist (Home/Harbor, Memory, Context, Reflection, Cultivation, Connectome, Continuity, Evidence, Settings). Nav labels are not product completion.
+
+## NOT IMPLEMENTED
+
+These are **not** implemented. Do not treat nav labels, inherited V2 presentation, or planned docs as GREEN.
+
+| Item | Status |
+|------|--------|
+| Connectome | **NOT implemented** |
+| Integration | **NOT implemented** |
+| Full Acceptance | **NOT implemented** |
+| Hardening | **NOT implemented** |
+| Stress | **NOT implemented** |
+| Optimization | **NOT implemented** |
+| Release Candidate | **NOT implemented** |
 
 ## PARTIAL
 
@@ -64,13 +81,13 @@ No new V3 GREEN tag is minted until a dedicated freeze is authorized.
 - Continuity v1 schema unchanged; Harbor has a separate export schema
 - Evidence UI does not render run files (honest: disk-only)
 
-## PLANNED
+## PLANNED (not started)
 
 - Live Harbor+Postgres dedicated gate
 - Full contradiction/confirm UI (not JSON dump)
 - Core Relation aggregate
 - Physics / Knowledge / Learning / Trust / Scheduler
-- External actions
+- External actions (authorized path exists; no product external-action surface)
 
 ## KNOWN LIMITATIONS
 
@@ -78,11 +95,11 @@ No new V3 GREEN tag is minted until a dedicated freeze is authorized.
 - `tsc -b` still reports pre-existing desktop/JSX project issues; Vitest is the executable suite
 - Import WRITE is derived-only; it never creates Core Memory cells
 - Preference contradiction heuristic is literal (`user prefers X`)
-- Desktop bundle identifier (`com.ailexsi.core-vault-v2`) and Cargo crate name still say v2 (inherited identity, not product version)
+- Inherited package names `@ailexsi/v2-*`, desktop bundle id `com.ailexsi.core-vault-v2`, and Cargo crate `ailexsi-core-vault-v2` are historical V2 module/bundle identity inside this V3 repository. They are not a second product and do not mean this tree is Vault V2.
 
 ## NEXT BUILD SLICE
 
-Dedicated Harbor+Postgres live gate — not more mock surfaces.
+Not started. Do not start Connectome, Integration, Full Acceptance, Hardening, Stress, Optimization, or Release Candidate from this documentation update.
 
 ## ARCHITECTURAL INVARIANTS
 
@@ -101,3 +118,6 @@ Dedicated Harbor+Postgres live gate — not more mock surfaces.
 | Core | `652d01eb06dd0841c3b475023883675af6dcd698` |
 | Vault V1 | `061e444389090c54e431b0e8243e82764f2c198e` |
 | V2 source | `d684aa4a3c292c1d1f1587a68371589437b68055` |
+| V3 bootstrap tag | `v3.0.0-v2-baseline` @ `0eba4dbe36cfab839da8bbcd1ddf2df10a5447d1` |
+| Agency implementation | `d7aa20e201908dabb561c327dc4de200857d0765` |
+| Implementation HEAD | `7bf0c115b1fce501f24b0b8b2266a081655c0819` |

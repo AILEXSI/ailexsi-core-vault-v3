@@ -41,6 +41,7 @@ Documentation alone never grants GREEN.
 
 Immutable historical anchors (do not move):
 
+- `v3.0.0-v2-baseline` @ `0eba4db` (V3 bootstrap identity; peels to `8a29278`)
 - `v2.0.0-memory-foundation-green`
 - `v2.1.0-desktop-memory-green`
 - `v2.2.0-retrieval-context-green`

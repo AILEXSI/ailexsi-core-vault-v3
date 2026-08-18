@@ -2,7 +2,9 @@
 
 This repository is **AILEXSI Core Vault V3**.
 
-It is the successor of the verified **V2** baseline (`AILEXSI/ailexsi-core-vault-v2` @ `d684aa4a3c292c1d1f1587a68371589437b68055`). Product version is declared in [`config/version.json`](config/version.json). The bootstrap tag `v3.0.0-v2-baseline` is historical identity, not that product version.
+It is the successor of the verified **V2** baseline (`AILEXSI/ailexsi-core-vault-v2` @ `d684aa4a3c292c1d1f1587a68371589437b68055`).
+
+Implementation HEAD: `7bf0c11`. Agency (explicit permission boundary): `d7aa20e` — **GREEN / implemented**. Bootstrap tag `v3.0.0-v2-baseline` @ `0eba4db` is V3 identity from the V2 copy; it is not a later-capability freeze.
 
 It uses **AILEXSI Core** as the canonical Cortex foundation.
 
@@ -113,12 +115,18 @@ not sufficient for GREEN.
 | Read models (classified, rebuildable) | VERIFIED (tests) |
 | Continuity package foundation | VERIFIED (tests) |
 | Cultivation + AI writeback safety | VERIFIED (tests) |
+| Harbor derived overlays through explicit agency / permission boundary | GREEN / implemented (`d7aa20e`, HEAD `7bf0c11`) |
 | Migration scanner + dry-run (no production write) | VERIFIED (tests) |
 | Dual-write guard | VERIFIED (static + tests) |
-| Connectome MVP presentation | PARTIAL |
 | Desktop Tauri shell | PARTIAL (foundation UI) |
-| Physics / Knowledge / Reflection / Learning / Trust / Scheduler | PLANNED (Core) |
-| Full Connectome ontology | PLANNED |
+| Connectome | **NOT implemented** |
+| Integration | **NOT implemented** |
+| Full Acceptance | **NOT implemented** |
+| Hardening | **NOT implemented** |
+| Stress | **NOT implemented** |
+| Optimization | **NOT implemented** |
+| Release Candidate | **NOT implemented** |
+| Physics / Knowledge / Learning / Trust / Scheduler | PLANNED (Core) |
 | Production vault migration writeback | NOT STARTED (foundation tooling only) |
 
 ### Live Postgres (required for GREEN)

@@ -5,7 +5,7 @@
 | **CORE** (Cortex) | `AILEXSI/ailexsi-core` | `652d01eb06dd0841c3b475023883675af6dcd698` | Phase 07 Projection COMPLETE / GREEN |
 | **VAULT** (legacy reference) | `AILEXSI/ailexsi-core-vault` | `061e444389090c54e431b0e8243e82764f2c198e` | Tauri + Markdown FS + Ollama (READ ONLY) |
 | **V2** (historical source baseline) | `AILEXSI/ailexsi-core-vault-v2` | `d684aa4a3c292c1d1f1587a68371589437b68055` | READ ONLY |
-| **V3** (work target) | `AILEXSI/ailexsi-core-vault-v3` | see `git rev-parse HEAD` / `origin/main` | Active |
+| **V3** (work target) | `AILEXSI/ailexsi-core-vault-v3` | implementation HEAD `7bf0c115b1fce501f24b0b8b2266a081655c0819`; agency `d7aa20e201908dabb561c327dc4de200857d0765`; bootstrap tag `v3.0.0-v2-baseline` @ `0eba4db` | Active through explicit agency |
 
 Machine-readable copy: [`config/baselines.json`](../config/baselines.json)
 

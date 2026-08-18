@@ -2,7 +2,7 @@
 
 **Class:** V3-DERIVED  
 **Canonical authority:** AILEXSI Core (unchanged)  
-**Product version:** `HARBOR_VERSION` must match `config/version.json` (not the bootstrap tag).
+**Agency:** GREEN / implemented (`d7aa20e`; implementation HEAD `7bf0c11`).
 
 Harbor is the user-facing cognitive infrastructure around Core Memory.
 

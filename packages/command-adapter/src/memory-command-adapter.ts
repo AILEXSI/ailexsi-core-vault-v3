@@ -113,7 +113,7 @@ export class MemoryCommandAdapter {
       idempotencyKey: cmd.idempotencyKey,
       correlationId: cmd.correlationId,
       causationId: cmd.causationId,
-      createdBy: cmd.createdBy ?? "v2",
+      createdBy: ctx.actor.id,
       memoryId: cmd.memoryId,
     });
     return cell;
@@ -147,33 +147,33 @@ export class MemoryCommandAdapter {
       idempotencyKey: cmd.idempotencyKey,
       correlationId: cmd.correlationId,
       causationId: cmd.causationId,
-      createdBy: cmd.createdBy ?? "v2",
+      createdBy: ctx.actor.id,
     });
     return cell;
   }
 
   async archive(cmd: V2LifecycleCommand, mutation?: AuthorizedMutationContext): Promise<MemoryCell> {
     validateLifecycle(cmd);
-    requireContext(mutation, "adapter.archive");
+    const ctx = requireContext(mutation, "adapter.archive");
     const cell = await this.#domain.archive(cmd.memoryId, {
       reason: cmd.reason,
       idempotencyKey: cmd.idempotencyKey,
       correlationId: cmd.correlationId,
       causationId: cmd.causationId,
-      createdBy: cmd.createdBy ?? "v2",
+      createdBy: ctx.actor.id,
     });
     return cell;
   }
 
   async restore(cmd: V2LifecycleCommand, mutation?: AuthorizedMutationContext): Promise<MemoryCell> {
     validateLifecycle(cmd);
-    requireContext(mutation, "adapter.restore");
+    const ctx = requireContext(mutation, "adapter.restore");
     const cell = await this.#domain.restore(cmd.memoryId, {
       reason: cmd.reason,
       idempotencyKey: cmd.idempotencyKey,
       correlationId: cmd.correlationId,
       causationId: cmd.causationId,
-      createdBy: cmd.createdBy ?? "v2",
+      createdBy: ctx.actor.id,
     });
     return cell;
   }

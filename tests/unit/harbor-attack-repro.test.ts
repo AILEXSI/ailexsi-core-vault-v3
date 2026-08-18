@@ -29,6 +29,7 @@ import {
 } from "@ailexsi/v3-harbor";
 import {
   authorizedCreate,
+  TEST_AI,
   TEST_HUMAN_A,
   TEST_HUMAN_B,
 } from "../helpers/authorized-write.js";
@@ -706,19 +707,32 @@ describe("AUTO-GRANT removed — Session Actor is not AuthorizationGrant", () =>
   });
 
   it("A: human session without grant is DENIED; EventStore unchanged", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
     const host = new DesktopHost();
     host.attachActor(TEST_HUMAN_A);
     expect(host.getSessionActor()?.id).toBe("test-human-a");
-    const err = await denialOfAsync(() =>
+    const hostErr = await denialOfAsync(() =>
       host.memoryCreate({
         content: { type: "text", text: "no-grant" },
         provenance: provenance(),
         idempotencyKey: "X",
       })
     );
-    expect(err.denial.code).toBe("GRANT_INVALID");
-    expect(err.denial.stateModified).toBe(false);
-    expect(err.message).toMatch(/already-issued AuthorizationGrant/i);
+    expect(hostErr.denial.code).toBe("GRANT_INVALID");
+    expect(hostErr.denial.stateModified).toBe(false);
+    expect(hostErr.message).toMatch(/already-issued AuthorizationGrant/i);
+    const adapterErr = await denialOfAsync(() =>
+      adapter.create({
+        content: { type: "text", text: "no-grant-adapter" },
+        provenance: provenance(),
+        idempotencyKey: "X",
+        createdBy: "spoofed",
+      })
+    );
+    expect(adapterErr.denial.code).toBe("EVENTSTORE_WRITE_FORBIDDEN");
+    expect(adapterErr.denial.stateModified).toBe(false);
+    expect(store.count()).toBe(0);
   });
 
   it("B: explicit grant success — one Memory, createdBy=test-human-a, record, consumed", async () => {
@@ -970,6 +984,206 @@ describe("AUTO-GRANT removed — Session Actor is not AuthorizationGrant", () =>
     ).toThrow(AgencyDeniedError);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("G: AI session cannot issueAuthorization or ACCEPT", async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "auto-grant-g-"));
+    try {
+      const harbor = HarborService.open({
+        corePin: CORE_PIN,
+        vaultReferenceSha: "v",
+        persistDir: dir,
+      });
+      bindAgencySessionActor(harbor.agency, TEST_AI);
+      expect(harbor.agency.issuedGrantCount()).toBe(0);
+      expect(() =>
+        harbor.agency.issueAuthorization(TEST_AI, {
+          grantedTo: { id: TEST_AI.id, kind: TEST_AI.kind },
+          capability: "CANONICAL_COMMIT",
+          action: "memory.create",
+          target: "X",
+        })
+      ).toThrow(AgencyDeniedError);
+      expect(harbor.agency.issuedGrantCount()).toBe(0);
+
+      const host = new DesktopHost();
+      host.attachActor(TEST_AI);
+      expect(host.getSessionActor()?.id).toBe("test-ai");
+      expect(() =>
+        host.issueAuthorization({
+          grantedTo: { id: TEST_AI.id, kind: TEST_AI.kind },
+          capability: "CANONICAL_COMMIT",
+          action: "memory.create",
+          target: "X",
+        })
+      ).toThrow(AgencyDeniedError);
+      await expect(
+        host.cultivationProposalAccept({
+          actorId: "test-human-a",
+          actorKind: "human",
+          sessionId: "s",
+          proposalId: "p",
+        })
+      ).rejects.toMatchObject({ denial: { code: "HUMAN_AUTHORIZATION_REQUIRED" } });
+      expect(host.getSessionActor()?.kind).toBe("ai");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("H: request actorId/actorKind cannot rebind the Session Actor", async () => {
+    const host = new DesktopHost();
+    host.attachActor(TEST_HUMAN_A);
+    const spoofAi = await denialOfAsync(() =>
+      host.memoryCreate({
+        actorId: "test-ai",
+        actorKind: "ai",
+        content: { type: "text", text: "spoof-ai" },
+        provenance: provenance(),
+        idempotencyKey: "X",
+      } as never)
+    );
+    expect(spoofAi.denial.code).toBe("GRANT_INVALID");
+    expect(spoofAi.denial.actorId).toBe("test-human-a");
+    const spoofB = await denialOfAsync(() =>
+      host.memoryCreate({
+        actorId: "test-human-b",
+        actorKind: "human",
+        content: { type: "text", text: "spoof-b" },
+        provenance: provenance(),
+        idempotencyKey: "Y",
+      } as never)
+    );
+    expect(spoofB.denial.code).toBe("GRANT_INVALID");
+    expect(spoofB.denial.actorId).toBe("test-human-a");
+    expect(host.getSessionActor()?.id).toBe("test-human-a");
+    expect(host.getSessionActor()?.kind).toBe("human");
+    const viaActorOf = (
+      host as unknown as { actorOf: (args: Record<string, unknown>) => { id: string; kind: string } }
+    ).actorOf?.({ actorId: "test-human-b", actorKind: "human" });
+    expect(viaActorOf === undefined || viaActorOf.id === "test-human-a").toBe(true);
+  });
+
+  it("multi-user: human B cannot use human A's Grant; A succeeds once; replay denied", async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "auto-grant-multi-"));
+    try {
+      const store = new InMemoryEventStore();
+      const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+      const harbor = HarborService.open({
+        corePin: CORE_PIN,
+        vaultReferenceSha: "v",
+        persistDir: dir,
+      });
+      bindAgencySessionActor(harbor.agency, TEST_HUMAN_A);
+      const grant = harbor.agency.issueAuthorization(TEST_HUMAN_A, {
+        grantedTo: { id: TEST_HUMAN_A.id, kind: TEST_HUMAN_A.kind },
+        capability: "CANONICAL_COMMIT",
+        action: "memory.create",
+        target: "X",
+        now: NOW,
+      });
+      const stolen = await denialOfAsync(() =>
+        harbor.commitCanonical({
+          actor: TEST_HUMAN_B,
+          grant,
+          action: "memory.create",
+          target: "X",
+          execute: async (ctx) => {
+            await adapter.create({
+              content: { type: "text", text: "stolen" },
+              provenance: provenance(),
+              idempotencyKey: "X",
+              createdBy: TEST_HUMAN_B.id,
+            }, ctx);
+            return { result: null, eventIds: [] };
+          },
+        })
+      );
+      expect(stolen.denial.code).toBe("GRANT_SUBJECT_MISMATCH");
+      expect(stolen.denial.stateModified).toBe(false);
+      expect(store.count()).toBe(0);
+
+      const { result } = await harbor.commitCanonical({
+        actor: TEST_HUMAN_A,
+        grant,
+        action: "memory.create",
+        target: "X",
+        execute: async (ctx) => {
+          const cell = await adapter.create({
+            content: { type: "text", text: "owner-write" },
+            provenance: provenance(),
+            idempotencyKey: "X",
+            createdBy: "ignored-request-identity",
+          }, ctx);
+          return { result: cell, eventIds: store.all().map((e) => e.event.eventId) };
+        },
+      });
+      expect(store.count()).toBe(1);
+      expect(result.content).toMatchObject({ type: "text", text: "owner-write" });
+      expect((store.all()[0]!.event.payload as { createdBy?: string }).createdBy).toBe(
+        "test-human-a"
+      );
+      expect(isConsumedGrant(grant, harbor.agency.registry)).toBe(true);
+
+      const replay = await denialOfAsync(() =>
+        harbor.commitCanonical({
+          actor: TEST_HUMAN_A,
+          grant,
+          action: "memory.create",
+          target: "X",
+          execute: async (ctx) => {
+            await adapter.create({
+              content: { type: "text", text: "replay" },
+              provenance: provenance(),
+              idempotencyKey: randomUUID(),
+              createdBy: TEST_HUMAN_A.id,
+            }, ctx);
+            return { result: null, eventIds: [] };
+          },
+        })
+      );
+      expect(replay.denial.code).toBe("GRANT_ALREADY_USED");
+      expect(replay.denial.stateModified).toBe(false);
+      expect(store.count()).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("production has one Grant issuer and no hardcoded Martin identity", () => {
+    const hostSrc = readFileSync(
+      path.join(process.cwd(), "packages/command-adapter/src/desktop-host.ts"),
+      "utf8"
+    );
+    const adapterSrc = readFileSync(
+      path.join(process.cwd(), "packages/command-adapter/src/memory-command-adapter.ts"),
+      "utf8"
+    );
+    const boundarySrc = readFileSync(
+      path.join(process.cwd(), "packages/harbor/src/agency-boundary.ts"),
+      "utf8"
+    );
+    const agencySrc = readFileSync(
+      path.join(process.cwd(), "packages/harbor/src/agency.ts"),
+      "utf8"
+    );
+    const harborIndex = readFileSync(
+      path.join(process.cwd(), "packages/harbor/src/index.ts"),
+      "utf8"
+    );
+    expect(harborIndex).not.toMatch(/issueAuthorizationOn/);
+    expect(harborIndex).not.toMatch(/export function issueAuthorization/);
+    expect(boundarySrc).toMatch(/issueAuthorization\(granter/);
+    expect(agencySrc).toMatch(/export function issueAuthorizationOn/);
+    expect(hostSrc).toMatch(/agency\.issueAuthorization/);
+    expect(hostSrc).not.toMatch(/issueAuthorizationOn/);
+    expect(hostSrc).not.toMatch(/issueTestAuthorization/);
+    expect(adapterSrc).not.toMatch(/issueAuthorization/);
+    expect(adapterSrc).toMatch(/createdBy: ctx\.actor\.id/);
+    expect(adapterSrc).not.toMatch(/cmd\.createdBy \?\? "v2"/);
+    for (const src of [hostSrc, adapterSrc, boundarySrc, agencySrc]) {
+      expect(src).not.toMatch(/\bmartin\b/i);
     }
   });
 });

@@ -184,6 +184,14 @@ export class DesktopHost {
    */
   issueAuthorization(spec: IssueAuthorizationSpec): AuthorizationGrant {
     const actor = this.requireSessionActor();
+    if (actor.kind !== "human") {
+      throw new AgencyDeniedError(
+        actor,
+        spec.capability,
+        "AI session cannot issueAuthorization",
+        { code: "HUMAN_AUTHORIZATION_REQUIRED", action: spec.action, target: spec.target }
+      );
+    }
     return this.requireHarbor().agency.issueAuthorization(actor, spec);
   }
 

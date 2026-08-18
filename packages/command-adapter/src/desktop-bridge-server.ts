@@ -1,17 +1,17 @@
 /**
  * Localhost HTTP bridge over long-lived DesktopHost.
  *
- * Tauri (and the Vite UI) call this bridge — never a second EventStore.
+ * AUTHENTICATION:
+ *   Channel Token → DesktopHost → Session Actor
  *
- *   UI / Tauri invoke
- *        ↓
- *   HTTP 127.0.0.1:DESKTOP_HOST_PORT  (Channel Token)
- *        ↓
- *   DesktopHost (Session Actor)
- *        ↓
- *   AgencyBoundary.commitCanonical
- *        ↓
- *   PostgresEventStore
+ * AUTHORIZATION:
+ *   Session Actor → AgencyBoundary.issueAuthorization → AuthorizationGrant
+ *
+ * MUTATION:
+ *   AuthorizationGrant → AgencyBoundary.commitCanonical
+ *     → Authorized Mutation Context → Core Adapter Gate → EventStore
+ *
+ * HTTP/JSON cannot issue Grants. Session Actor is not write authority.
  */
 
 import http from "node:http";

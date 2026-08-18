@@ -76,7 +76,7 @@ describe("Derived query service", () => {
     const found = harbor.queries(HUMAN).getDerivedMemory(a.identity.id);
     expect(found?.id).toBe(a.identity.id);
     expect(found?.memoryId).toBe(a.identity.id);
-    expect(found?.status).toBe("DERIVED");
+    expect(found?.status).toBe("UNCERTAIN");
     expect(found?.class).toBe("V3-DERIVED");
     expect(harbor.queries(HUMAN).getDerivedMemory("missing")).toBeNull();
     expect(store.count()).toBe(events);
@@ -124,10 +124,10 @@ describe("Derived query service", () => {
       changedBy: AI,
     });
     const inferred = harbor.queries(HUMAN).findDerivedByStatus("INFERRED");
-    const derived = harbor.queries(HUMAN).findDerivedByStatus("DERIVED");
+    const uncertain = harbor.queries(HUMAN).findDerivedByStatus("UNCERTAIN");
     expect(inferred.items.map((i) => i.id)).toEqual([a.identity.id]);
-    expect(derived.items.every((i) => i.status === "DERIVED")).toBe(true);
-    expect(derived.items.map((i) => i.id)).not.toContain(a.identity.id);
+    expect(uncertain.items.every((i) => i.status === "UNCERTAIN")).toBe(true);
+    expect(uncertain.items.map((i) => i.id)).not.toContain(a.identity.id);
   });
 
   it("finds derived records by canonical source memory", async () => {
@@ -246,11 +246,11 @@ describe("Derived query service", () => {
     const hit = q.findDerivedBySource(a.identity.id).items[0]!;
     hit.sourceMemoryIds.push("injected");
 
-    expect(harbor.epistemic.get(a.identity.id)?.status).toBe("DERIVED");
+    expect(harbor.epistemic.get(a.identity.id)?.status).toBe("UNCERTAIN");
     expect(harbor.currentFingerprint()).toBe(fingerprint);
     expect(store.count()).toBe(events);
     expect(readFileSync(path.join(dir, "index.json"), "utf8")).toBe(raw);
-    expect(q.getDerivedMemory(a.identity.id)?.status).toBe("DERIVED");
+    expect(q.getDerivedMemory(a.identity.id)?.status).toBe("UNCERTAIN");
     expect(typeof (q as unknown as { persistDerived?: unknown }).persistDerived).toBe("undefined");
     expect(typeof (q as unknown as { rebuildFromCanonical?: unknown }).rebuildFromCanonical).toBe(
       "undefined"

@@ -67,6 +67,6 @@ describe("Harbor rebuildability", () => {
     const events = store.count();
     harbor.rebuildFromCanonical([a], HUMAN, "2026-08-17T15:00:00.000Z");
     expect(store.count()).toBe(events);
-    expect(harbor.epistemic.get(a.identity.id)?.status).toBe("DERIVED");
+    expect(harbor.epistemic.get(a.identity.id)?.status).toBe("UNCERTAIN");
   });
 });

@@ -22,12 +22,12 @@ export class EpistemicTransitionError extends Error {
 export function defaultEpistemicForCoreMemory(memoryId: string, now: string): EpistemicRecord {
   return {
     memoryId,
-    status: "DERIVED",
+    status: "UNCERTAIN",
     confidence: 0.5,
     evidenceEventIds: [],
     lastChangedAt: now,
     changedBy: { id: "core", kind: "system" },
-    note: "Core Memory was recorded. Existence of the record is not proof that its content is true.",
+    note: "Core Memory was recorded. Existence of the record is not proof that its content is true. An overlay is not a derivation of the content.",
     class: HARBOR_CLASS,
   };
 }

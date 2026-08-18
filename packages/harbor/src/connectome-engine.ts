@@ -55,7 +55,7 @@ export interface ConnectomeNode {
   id: string;
   kind: "MEMORY" | "PROPOSAL" | "REFLECTION" | "QUESTION";
   label: string;
-  status: RelationStatus | "CANONICAL_REFERENCE";
+  status: RelationStatus | "CANONICAL_REFERENCE" | "UNCERTAIN";
 }
 
 export interface ConnectomePathHop {
@@ -175,7 +175,7 @@ export function assembleConnectome(input: {
       id: m.identity.id,
       kind: "MEMORY",
       label: labelOf(m),
-      status: "CANONICAL_REFERENCE",
+      status: "UNCERTAIN",
     });
     const persisted = relationFromCanonicalMemory(m);
     if (persisted) relations.push(persisted);
@@ -189,7 +189,7 @@ export function assembleConnectome(input: {
           type: mapCoreType(String(ref.type)),
           status: "CORE_REFERENCE",
           confidence: 0.4,
-          evidenceMemoryIds: [m.identity.id, ref.targetMemoryId],
+          evidenceMemoryIds: [],
           now: input.now,
           why: "Recorded on the Core Memory relationRefs field. Endpoints existing is not evidence that the asserted relation is true.",
           source: `memory.relationRefs:${ref.relationId}`,
@@ -206,7 +206,7 @@ export function assembleConnectome(input: {
           to: m.identity.id,
           type: "DERIVED_FROM",
           status: "OBSERVED",
-          confidence: 0.9,
+          confidence: 0.4,
           evidenceMemoryIds: [parentId, m.identity.id],
           now: m.timestamps.createdAt,
           why: "Observed from provenance.parentMemoryIds on the child Memory.",
@@ -577,7 +577,7 @@ function explain(input: {
   authority: string;
 }): RelationExplanation {
   return {
-    what: `${input.from} ${input.type} ${input.to}`,
+    what: `Recorded/asserted relation type ${input.type} from ${input.from} to ${input.to} (not proof that the relation is true)`,
     why: input.why,
     source: input.source,
     status: input.status,

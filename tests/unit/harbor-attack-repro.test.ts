@@ -1501,7 +1501,8 @@ describe("semantic honesty — identity, grant bearer, connectome, ACCEPT", () =
   it("A: Core Memory existence is not FACT and not confidence 1", async () => {
     const overlay = defaultEpistemicForCoreMemory("mem-1", NOW);
     expect(overlay.status).not.toBe("FACT");
-    expect(overlay.status).toBe("DERIVED");
+    expect(overlay.status).not.toBe("DERIVED");
+    expect(overlay.status).toBe("UNCERTAIN");
     expect(overlay.confidence).toBeLessThan(1);
     expect(overlay.note).toMatch(/not proof/i);
     const store = new InMemoryEventStore();
@@ -1514,7 +1515,7 @@ describe("semantic honesty — identity, grant bearer, connectome, ACCEPT", () =
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
     harbor.scan([cell], TEST_HUMAN_A, NOW);
     const rec = harbor.epistemic.get(cell.identity.id);
-    expect(rec?.status).toBe("DERIVED");
+    expect(rec?.status).toBe("UNCERTAIN");
     expect(rec?.confidence).toBeLessThan(1);
   });
 
@@ -1566,7 +1567,11 @@ describe("semantic honesty — identity, grant bearer, connectome, ACCEPT", () =
     const coreRef = view.relations.find((r) => r.status === "CORE_REFERENCE");
     expect(coreRef).toBeDefined();
     expect(coreRef!.confidence).toBeLessThan(1);
+    expect(coreRef!.evidenceMemoryIds).toEqual([]);
+    expect(coreRef!.evidenceMemoryIds).not.toEqual([a.identity.id, b.identity.id]);
     expect(coreRef!.explanation.why).toMatch(/not evidence that the asserted relation is true/i);
+    expect(coreRef!.explanation.what).toMatch(/recorded\/asserted relation type/i);
+    expect(coreRef!.explanation.what).toMatch(/not proof that the relation is true/i);
     const pathResult = harbor.traverseConnectome(
       [withRef, b],
       a.identity.id,
@@ -1620,5 +1625,31 @@ describe("semantic honesty — identity, grant bearer, connectome, ACCEPT", () =
     expect(p.proposalType).toBe("insufficient_evidence");
     expect(p.proposalType).not.toBe("create_memory");
     expect(p.resultingEventIds).toEqual([]);
+  });
+
+  it("OBSERVED confidence is not stronger than authorized persist; Memory nodes are not CANONICAL_REFERENCE", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const parent = await authorizedCreate(adapter, {
+      content: { type: "text", text: "parent" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const child = await authorizedCreate(adapter, {
+      content: { type: "text", text: "child" },
+      provenance: provenance([parent.identity.id]),
+      idempotencyKey: randomUUID(),
+    });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const view = harbor.connectome([parent, child], TEST_HUMAN_A, NOW);
+    const observed = view.relations.find((r) => r.status === "OBSERVED");
+    expect(observed).toBeDefined();
+    expect(observed!.confidence).toBeLessThanOrEqual(0.5);
+    expect(observed!.explanation.what).toMatch(/recorded\/asserted relation type/i);
+    expect(observed!.explanation.what).toMatch(/not proof that the relation is true/i);
+    const memNodes = view.nodes.filter((n) => n.kind === "MEMORY");
+    expect(memNodes.length).toBeGreaterThan(0);
+    expect(memNodes.every((n) => n.status !== "CANONICAL_REFERENCE")).toBe(true);
+    expect(memNodes.every((n) => n.status === "UNCERTAIN")).toBe(true);
   });
 });

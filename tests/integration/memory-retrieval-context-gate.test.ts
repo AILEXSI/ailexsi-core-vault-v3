@@ -16,6 +16,7 @@ import {
 } from "@ailexsi/v2-command-adapter";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
 import type { Provenance } from "@ailexsi/contracts";
+import { authorizedCreate, authorizedArchive, TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
 
 function provenance(): Provenance {
   return {
@@ -88,26 +89,26 @@ describe("PHASE 4 — MEMORY RETRIEVAL + CONTEXT GATE", () => {
       producer: "v2-p4-filter",
     });
     try {
-      await rt.adapter.create({
+      await authorizedCreate(rt.adapter, {
         content: { type: "text", text: "alpha-one" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
         context: { tags: ["t1"], project: "proj-a" },
       });
       // ensure distinct timestamps by sequential creates (clock may share ms)
-      await rt.adapter.create({
+      await authorizedCreate(rt.adapter, {
         content: { type: "text", text: "beta-two" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
         context: { tags: ["t2"], project: "proj-b" },
       });
-      const c = await rt.adapter.create({
+      const c = await authorizedCreate(rt.adapter, {
         content: { type: "text", text: "alpha-three" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
         context: { tags: ["t1", "t2"], project: "proj-a" },
       });
-      await rt.adapter.archive({
+      await authorizedArchive(rt.adapter, {
         memoryId: c.identity.id,
         idempotencyKey: randomUUID(),
       });
@@ -176,7 +177,7 @@ describe("PHASE 4 — MEMORY RETRIEVAL + CONTEXT GATE", () => {
     });
     try {
       for (let i = 0; i < 5; i++) {
-        await rt.adapter.create({
+        await authorizedCreate(rt.adapter, {
           content: { type: "text", text: `page-${i}` },
           provenance: provenance(),
           idempotencyKey: randomUUID(),
@@ -217,7 +218,7 @@ describe("PHASE 4 — MEMORY RETRIEVAL + CONTEXT GATE", () => {
       const created = [];
       for (const t of ["ctx-a", "ctx-b", "ctx-c"]) {
         created.push(
-          await rt.adapter.create({
+          await authorizedCreate(rt.adapter, {
             content: { type: "text", text: t },
             provenance: provenance(),
             idempotencyKey: randomUUID(),
@@ -268,7 +269,7 @@ describe("PHASE 4 — MEMORY RETRIEVAL + CONTEXT GATE", () => {
       producer: "v2-p4-rebuild",
     });
     try {
-      await rt.adapter.create({
+      await authorizedCreate(rt.adapter, {
         content: { type: "text", text: "rebuild-me" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
@@ -324,6 +325,7 @@ describe("PHASE 4 — MEMORY RETRIEVAL + CONTEXT GATE", () => {
         connectionString: isoUrl,
         environment: "test",
         producer: "v2-p4-desktop",
+        actor: TEST_SESSION_ACTOR,
       });
       expect(host.storeConstructorName()).toBe("PostgresEventStore");
       const gen = host.generation;

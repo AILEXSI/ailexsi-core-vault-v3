@@ -22,6 +22,11 @@ export {
   type CreateCoreRuntimeOptions,
 } from "./core-runtime.js";
 export {
+  asProductionStore,
+  testOnlyEventStore,
+  type EventStoreRead,
+} from "./event-store-read.js";
+export {
   DesktopHost,
   getDesktopHost,
   resetDesktopHostForTests,

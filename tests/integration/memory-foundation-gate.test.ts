@@ -18,6 +18,7 @@ import {
   createCoreRuntime,
   classifyV2Error,
   V2CommandValidationError,
+  testOnlyEventStore,
   type CoreRuntime,
 } from "@ailexsi/v2-command-adapter";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
@@ -27,6 +28,7 @@ import {
   EventValidationError,
   type Provenance,
 } from "@ailexsi/contracts";
+import { authorizedCreate, authorizedUpdate, authorizedArchive, authorizedRestore } from "../helpers/authorized-write.js";
 
 function provenance(overrides: Partial<Provenance> = {}): Provenance {
   return {
@@ -107,7 +109,7 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
   // ── 4. CREATE ──────────────────────────────────────────────────────
   it("CREATE: V2 → Core → PostgresEventStore → MemoryCreated → read model", async () => {
     const key = randomUUID();
-    const cell = await runtime!.adapter.create({
+    const cell = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "foundation-create" },
       context: {
         tags: ["foundation", "gate"],
@@ -143,14 +145,14 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
 
   // ── 5. UPDATE ──────────────────────────────────────────────────────
   it("UPDATE: version 1 → MemoryUpdated → version 2; history has both", async () => {
-    const created = await runtime!.adapter.create({
+    const created = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "v1-content" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
     const id = created.identity.id;
 
-    const updated = await runtime!.adapter.update({
+    const updated = await authorizedUpdate(runtime!.adapter, {
       memoryId: id,
       content: { type: "text", text: "v2-content" },
       changeReason: "foundation-update",
@@ -185,14 +187,14 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
 
   // ── 6–7 ARCHIVE + RESTORE ──────────────────────────────────────────
   it("ARCHIVE then RESTORE: lifecycle events + history preserved", async () => {
-    const created = await runtime!.adapter.create({
+    const created = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "lifecycle-body" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
     const id = created.identity.id;
 
-    const archived = await runtime!.adapter.archive({
+    const archived = await authorizedArchive(runtime!.adapter, {
       memoryId: id,
       reason: "foundation-archive",
       idempotencyKey: randomUUID(),
@@ -204,7 +206,7 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
     let stream = await runtime!.store.getByAggregate(id);
     expect(stream[stream.length - 1]!.event.eventType).toBe("MemoryArchived");
 
-    const restored = await runtime!.adapter.restore({
+    const restored = await authorizedRestore(runtime!.adapter, {
       memoryId: id,
       reason: "foundation-restore",
       idempotencyKey: randomUUID(),
@@ -228,23 +230,23 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
 
   // ── 8 HISTORY from Core stream ─────────────────────────────────────
   it("HISTORY: EventStore stream is source of truth (event types)", async () => {
-    const created = await runtime!.adapter.create({
+    const created = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "hist-v1" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
-    await runtime!.adapter.update({
+    await authorizedUpdate(runtime!.adapter, {
       memoryId: created.identity.id,
       content: { type: "text", text: "hist-v2" },
       idempotencyKey: randomUUID(),
       changeReason: "edit",
     });
-    await runtime!.adapter.archive({
+    await authorizedArchive(runtime!.adapter, {
       memoryId: created.identity.id,
       idempotencyKey: randomUUID(),
       reason: "done",
     });
-    await runtime!.adapter.restore({
+    await authorizedRestore(runtime!.adapter, {
       memoryId: created.identity.id,
       idempotencyKey: randomUUID(),
       reason: "undo",
@@ -268,12 +270,12 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
   // ── 9 IDEMPOTENCY ──────────────────────────────────────────────────
   it("IDEMPOTENCY same key + same payload → no duplicate event", async () => {
     const key = randomUUID();
-    const a = await runtime!.adapter.create({
+    const a = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "idem-same" },
       provenance: provenance(),
       idempotencyKey: key,
     });
-    const b = await runtime!.adapter.create({
+    const b = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "idem-same" },
       provenance: provenance(),
       idempotencyKey: key,
@@ -285,13 +287,13 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
 
   it("IDEMPOTENCY same key + different payload → domain returns original; EventStore conflicts on append", async () => {
     const key = randomUUID();
-    const first = await runtime!.adapter.create({
+    const first = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "payload-A" },
       provenance: provenance(),
       idempotencyKey: key,
     });
     // Core MemoryDomain short-circuits — returns original (no second append)
-    const second = await runtime!.adapter.create({
+    const second = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "payload-B" },
       provenance: provenance(),
       idempotencyKey: key,
@@ -306,7 +308,7 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
     const existing = await runtime!.store.getByIdempotencyKey(key);
     expect(existing).not.toBeNull();
     await expect(
-      runtime!.store.append({
+      testOnlyEventStore(runtime!).append({
         event: {
           ...existing!.event,
           eventId: randomUUID(),
@@ -344,7 +346,7 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
 
     let caught: unknown;
     try {
-      await runtime!.adapter.create({
+      await authorizedCreate(runtime!.adapter, {
         content: { type: "text", text: "x" },
         // @ts-expect-error intentional invalid — rejected at V2 boundary
         provenance: { sourceType: "nope" },
@@ -364,12 +366,12 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
   });
 
   it("INVALID: update archived without restore → validation; no extra corrupt state", async () => {
-    const created = await runtime!.adapter.create({
+    const created = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "will-archive" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
-    await runtime!.adapter.archive({
+    await authorizedArchive(runtime!.adapter, {
       memoryId: created.identity.id,
       idempotencyKey: randomUUID(),
     });
@@ -404,7 +406,7 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
 
   // ── 11 CONCURRENCY ─────────────────────────────────────────────────
   it("CONCURRENCY: two updates expecting same next version → one wins, one conflicts", async () => {
-    const created = await runtime!.adapter.create({
+    const created = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "race-base" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
@@ -459,45 +461,45 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
     });
 
     try {
-      const a = await iso.adapter.create({
+      const a = await authorizedCreate(iso.adapter, {
         content: { type: "text", text: "mem-A-v1" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
         context: { tags: ["A"], project: "ailexsi-core-vault-v2" },
       });
-      const b = await iso.adapter.create({
+      const b = await authorizedCreate(iso.adapter, {
         content: { type: "text", text: "mem-B-v1" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
         context: { tags: ["B"] },
       });
-      const c = await iso.adapter.create({
+      const c = await authorizedCreate(iso.adapter, {
         content: { type: "text", text: "mem-C-v1" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
       });
 
-      await iso.adapter.update({
+      await authorizedUpdate(iso.adapter, {
         memoryId: b.identity.id,
         content: { type: "text", text: "mem-B-v2" },
         idempotencyKey: randomUUID(),
       });
-      await iso.adapter.archive({
+      await authorizedArchive(iso.adapter, {
         memoryId: a.identity.id,
         idempotencyKey: randomUUID(),
         reason: "archive-A",
       });
-      await iso.adapter.update({
+      await authorizedUpdate(iso.adapter, {
         memoryId: c.identity.id,
         content: { type: "text", text: "mem-C-v2" },
         idempotencyKey: randomUUID(),
       });
-      await iso.adapter.restore({
+      await authorizedRestore(iso.adapter, {
         memoryId: a.identity.id,
         idempotencyKey: randomUUID(),
         reason: "restore-A",
       });
-      await iso.adapter.archive({
+      await authorizedArchive(iso.adapter, {
         memoryId: c.identity.id,
         idempotencyKey: randomUUID(),
       });
@@ -626,7 +628,7 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
 
   // ── GET after create ───────────────────────────────────────────────
   it("GET returns same aggregate after create", async () => {
-    const created = await runtime!.adapter.create({
+    const created = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "get-me" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),

@@ -13,13 +13,22 @@ import {
   AgencyDeniedError,
   buildCanonicalActionRecord,
   evaluateAccess,
+  isConsumedGrant,
   isIssuedGrant,
+  issueAuthorizationOn,
+  markGrantConsumed,
   sealActor,
   type AgencyAuthority,
   type AgencyDenial,
   type AuthorizationGrant,
   type CanonicalActionRecord,
+  type IssueAuthorizationSpec,
 } from "./agency.js";
+import { DurableGrantRegistry, getDefaultGrantRegistry } from "./grant-registry.js";
+import {
+  clearMutationContext,
+  installMutationContext,
+} from "./mutation-context.js";
 import type { Capability, HarborActor } from "./types.js";
 
 export interface CanonicalCommitRequest<T> {
@@ -43,7 +52,23 @@ export interface ExternalActionRequest<T> {
 export class AgencyBoundary {
   private readonly denials: AgencyDenial[] = [];
   private readonly records: CanonicalActionRecord[] = [];
-  private readonly usedGrants = new Set<string>();
+  readonly registry: DurableGrantRegistry;
+
+  constructor(registry: DurableGrantRegistry = getDefaultGrantRegistry()) {
+    this.registry = registry;
+  }
+
+  issueAuthorization(granter: HarborActor, spec: IssueAuthorizationSpec): AuthorizationGrant {
+    return issueAuthorizationOn(this.registry, granter, spec);
+  }
+
+  isIssuedGrant(grant: AuthorizationGrant): boolean {
+    return isIssuedGrant(grant, this.registry);
+  }
+
+  issuedGrantCount(): number {
+    return this.registry.issuedCount();
+  }
 
   inspectDenials(): AgencyDenial[] {
     return this.denials.map((d) => structuredClone(d));
@@ -85,8 +110,19 @@ export class AgencyBoundary {
     const actor = sealActor(request.actor);
     this.require(actor, "CANONICAL_COMMIT", request.action, request.target);
     this.requireGrant(actor, request.grant, "CANONICAL_COMMIT", request.action, request.target);
-    const executed = await request.execute();
-    this.usedGrants.add(request.grant.grantId);
+    installMutationContext({
+      actor,
+      grant: request.grant,
+      action: request.action,
+      target: request.target,
+    });
+    let executed: { result: T; eventIds: string[] };
+    try {
+      executed = await request.execute();
+    } finally {
+      clearMutationContext();
+    }
+    markGrantConsumed(request.grant, this.registry);
     const record = buildCanonicalActionRecord({
       actor,
       grant: request.grant,
@@ -104,7 +140,7 @@ export class AgencyBoundary {
     this.require(actor, "EXTERNAL_ACTION", request.action, request.target);
     this.requireGrant(actor, request.grant, "EXTERNAL_ACTION", request.action, request.target);
     const result = await request.execute();
-    this.usedGrants.add(request.grant.grantId);
+    markGrantConsumed(request.grant, this.registry);
     const record = buildCanonicalActionRecord({
       actor,
       grant: request.grant,
@@ -201,12 +237,32 @@ export class AgencyBoundary {
     action: string,
     target: string
   ): void {
-    if (!isIssuedGrant(grant)) {
+    if (!isIssuedGrant(grant, this.registry)) {
+      if (isConsumedGrant(grant, this.registry)) {
+        throw this.deny(
+          actor,
+          capability,
+          "GRANT_ALREADY_USED",
+          `Grant ${grant.grantId} has already been consumed`,
+          action,
+          target
+        );
+      }
       throw this.deny(
         actor,
         capability,
         "GRANT_INVALID",
         "Authorization grant was not issued by the agency boundary",
+        action,
+        target
+      );
+    }
+    if (!grant.grantedTo || actor.id !== grant.grantedTo.id) {
+      throw this.deny(
+        actor,
+        capability,
+        "GRANT_SUBJECT_MISMATCH",
+        `Grant ${grant.grantId} is bound to ${grant.grantedTo?.id ?? "(none)"}, not ${actor.id}`,
         action,
         target
       );
@@ -251,7 +307,7 @@ export class AgencyBoundary {
         target
       );
     }
-    if (this.usedGrants.has(grant.grantId)) {
+    if (isConsumedGrant(grant, this.registry)) {
       throw this.deny(
         actor,
         capability,

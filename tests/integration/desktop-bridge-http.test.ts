@@ -12,6 +12,7 @@ import {
   type DesktopBridgeServer,
 } from "@ailexsi/v2-command-adapter";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
+import { TEST_CHANNEL_TOKEN, TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
 import type { Provenance } from "@ailexsi/contracts";
 
 function provenance(): Provenance {
@@ -26,7 +27,10 @@ function provenance(): Provenance {
 async function post(base: string, command: string, body: unknown) {
   const res = await fetch(`${base}/commands/${command}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "x-channel-token": process.env.DESKTOP_HOST_TOKEN ?? TEST_CHANNEL_TOKEN,
+    },
     body: JSON.stringify(body),
   });
   const json = await res.json();
@@ -40,12 +44,14 @@ describe("Desktop HTTP bridge → long-lived DesktopHost → PostgresEventStore"
 
   beforeAll(async () => {
     resetDesktopHostForTests();
+    process.env.DESKTOP_HOST_TOKEN = TEST_CHANNEL_TOKEN;
     live = await startLivePostgres();
     server = await startDesktopBridgeServer({
       connectionString: live.connectionString,
       port: 0,
       environment: "test",
       producer: "v2-bridge-test",
+      actor: TEST_SESSION_ACTOR,
     });
     base = server.url;
   }, 180_000);
@@ -71,6 +77,17 @@ describe("Desktop HTTP bridge → long-lived DesktopHost → PostgresEventStore"
       }
     }
   }, 60_000);
+
+  it("missing Channel Token on /commands is 401", async () => {
+    const res = await fetch(`${base}/commands/memory.list`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { error?: string };
+    expect(body.error).toMatch(/token/i);
+  });
 
   it("health reports PostgresEventStore", async () => {
     const res = await fetch(`${base}/health`);

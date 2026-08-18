@@ -13,6 +13,7 @@ import {
 } from "@ailexsi/v2-cultivation";
 import { InMemoryEventStore } from "@ailexsi/v2-test-kit";
 import type { Provenance } from "@ailexsi/contracts";
+import { authorizedCreate, viaCanonicalCommit } from "../helpers/authorized-write.js";
 
 function provenance(): Provenance {
   return {
@@ -57,7 +58,7 @@ describe("AI writeback safety", () => {
   it("AI proposal acceptance issues Core command and appends event", async () => {
     const session = cultivation.createSession();
     // seed a core memory for context assembly only
-    await adapter.create({
+    await authorizedCreate(adapter, {
       content: { type: "text", text: "context seed" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
@@ -67,9 +68,20 @@ describe("AI writeback safety", () => {
     const { proposal } = await cultivation.chat(session.id, "Remember this");
     expect(store.count()).toBe(seedCount);
 
-    const { cell } = await cultivation.acceptCanonical(session.id, proposal.id, {
+    const { draft } = cultivation.acceptCanonical(session.id, proposal.id, {
       idempotencyKey: randomUUID(),
     });
+    expect(store.count()).toBe(seedCount);
+    const cell = await viaCanonicalCommit(
+      () =>
+        adapter.create({
+          content: draft.content,
+          provenance: draft.provenance,
+          idempotencyKey: draft.idempotencyKey,
+        }),
+      { action: "memory.create", target: proposal.id }
+    );
+    proposal.acceptedMemoryId = cell.identity.id;
     expect(cell.content).toMatchObject({
       type: "text",
       text: "Proposed memory text from AI",
@@ -84,10 +96,19 @@ describe("AI writeback safety", () => {
   it("edited acceptance uses edited text", async () => {
     const session = cultivation.createSession();
     const { proposal } = await cultivation.chat(session.id, "x");
-    const { cell } = await cultivation.acceptCanonical(session.id, proposal.id, {
+    const { draft } = cultivation.acceptCanonical(session.id, proposal.id, {
       editedText: "human-edited canonical text",
       idempotencyKey: randomUUID(),
     });
+    const cell = await viaCanonicalCommit(
+      () =>
+        adapter.create({
+          content: draft.content,
+          provenance: draft.provenance,
+          idempotencyKey: draft.idempotencyKey,
+        }),
+      { action: "memory.create", target: proposal.id }
+    );
     expect(cell.content).toEqual({
       type: "text",
       text: "human-edited canonical text",

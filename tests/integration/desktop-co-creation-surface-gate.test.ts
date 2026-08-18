@@ -15,6 +15,7 @@ import {
 } from "@ailexsi/v2-command-adapter";
 import { MockLlmProvider } from "@ailexsi/v2-cultivation";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
+import { TEST_CHANNEL_TOKEN, TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
 import type { Provenance } from "@ailexsi/contracts";
 
 const CORE = "652d01eb06dd0841c3b475023883675af6dcd698";
@@ -32,7 +33,10 @@ function provenance(): Provenance {
 async function post(base: string, command: string, body: unknown = {}) {
   const res = await fetch(`${base}/commands/${command}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "x-channel-token": process.env.DESKTOP_HOST_TOKEN ?? TEST_CHANNEL_TOKEN,
+    },
     body: JSON.stringify(body),
   });
   const json = (await res.json()) as {
@@ -53,6 +57,7 @@ describe("DESKTOP CO-CREATION SURFACE GATE", () => {
 
   beforeAll(async () => {
     resetDesktopHostForTests();
+    process.env.DESKTOP_HOST_TOKEN = TEST_CHANNEL_TOKEN;
     const host = getDesktopHost();
     host.setLlmProvider(new MockLlmProvider("dcs-mock-proposal-text"));
     live = await startLivePostgres();
@@ -63,6 +68,7 @@ describe("DESKTOP CO-CREATION SURFACE GATE", () => {
       producer: "v2-dcs-surface",
       coreBaselineSha: CORE,
       vaultReferenceSha: VAULT,
+      actor: TEST_SESSION_ACTOR,
     });
     base = server.url;
   }, 180_000);

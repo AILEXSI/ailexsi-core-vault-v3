@@ -18,10 +18,12 @@ import { MemoryCommandAdapter } from "./memory-command-adapter.js";
 import { MemoryQueryService } from "./memory-query-service.js";
 import { ContinuityService } from "./continuity-service.js";
 import { MemoryReadModel } from "@ailexsi/v2-read-models";
+import { asProductionStore, type EventStoreRead } from "./event-store-read.js";
 
 export interface CoreRuntime {
   database: Database;
-  store: EventStore;
+  /** Read-only EventStore surface. append is not a production path. */
+  store: EventStoreRead;
   adapter: MemoryCommandAdapter;
   memoryProjection: MemoryProjection;
   projectionEngine: ProjectionEngine;
@@ -124,8 +126,10 @@ export async function createCoreRuntime(
     adapter.rebuildFromEvents(stream);
   }
 
+  const publicStore = asProductionStore(store);
+
   const queries = new MemoryQueryService({
-    store,
+    store: publicStore,
     adapter,
     readModel,
     rebuildAll,
@@ -148,7 +152,7 @@ export async function createCoreRuntime(
 
   return {
     database,
-    store,
+    store: publicStore,
     adapter,
     memoryProjection,
     projectionEngine,

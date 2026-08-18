@@ -19,7 +19,8 @@ export type RelationStatus =
   | "INFERRED"
   | "PROPOSED"
   | "CANONICAL_MEMORY"
-  | "DISPUTED";
+  | "DISPUTED"
+  | "REJECTED";
 
 export interface RelationExplanation {
   what: string;
@@ -132,7 +133,7 @@ export function relationFromCanonicalMemory(cell: MemoryCell): ConnectomeRelatio
     type: data.type,
     status: "CANONICAL_MEMORY",
     confidence: 1,
-    evidenceMemoryIds: [...(data.evidenceMemoryIds ?? []), data.from, data.to],
+    evidenceMemoryIds: [...(data.evidenceMemoryIds ?? [])],
     evidenceContradictionIds: [],
     evidenceReflectionIds: [],
     evidenceProposalIds: [],
@@ -148,7 +149,7 @@ export function relationFromCanonicalMemory(cell: MemoryCell): ConnectomeRelatio
       from: data.from,
       to: data.to,
       status: "CANONICAL_MEMORY",
-      why: "Persisted as a Core Memory structured cell after explicit human authorization.",
+      why: "Persisted as a Core Memory structured cell after explicit human authorization. Cited memories are citations, not proof of the relation.",
       source: `memory:${cell.identity.id}`,
       when,
       authority: data.authorizedById
@@ -298,6 +299,7 @@ export function assembleConnectome(input: {
   }
 
   for (const rp of input.relationProposals ?? []) {
+    if (rp.status === "REJECTED") continue;
     if (rp.status === "COMMITTED" && rp.canonicalMemoryId) continue;
     relations.push(
       makeRelation({
@@ -363,17 +365,25 @@ export function listRelations(
   });
 }
 
-export function traverseConnectome(
+const CANONICAL_TRAVERSAL = new Set<RelationStatus>([
+  "CORE_REFERENCE",
+  "OBSERVED",
+  "CANONICAL_MEMORY",
+]);
+
+const SPECULATIVE_TRAVERSAL_REASON =
+  "A speculative path exists but is excluded from canonical traversal.";
+
+function walkDirected(
   view: ConnectomeView,
   from: string,
   to: string,
-  maxDepth = 6
-): ConnectomePath {
-  if (from === to) {
-    return { found: true, from, to, hops: [], reason: "Start and end are the same node." };
-  }
+  maxDepth: number,
+  allow: (rel: ConnectomeRelation) => boolean
+): ConnectomePathHop[] | null {
   const adj = new Map<string, ConnectomeRelation[]>();
   for (const r of view.relations) {
+    if (!allow(r)) continue;
     const list = adj.get(r.from) ?? [];
     list.push(r);
     adj.set(r.from, list);
@@ -396,18 +406,48 @@ export function traverseConnectome(
         explanation: rel.explanation,
       };
       const hops = [...cur.hops, hop];
-      if (rel.to === to) {
-        return {
-          found: true,
-          from,
-          to,
-          hops,
-          reason: `Path of ${hops.length} hop(s). Statuses are per-edge; inferred hops are not canonical.`,
-        };
-      }
+      if (rel.to === to) return hops;
       visited.add(rel.to);
       queue.push({ node: rel.to, hops });
     }
+  }
+  return null;
+}
+
+export function traverseConnectome(
+  view: ConnectomeView,
+  from: string,
+  to: string,
+  maxDepth = 6
+): ConnectomePath {
+  if (from === to) {
+    return { found: true, from, to, hops: [], reason: "Start and end are the same node." };
+  }
+  const canonical = walkDirected(view, from, to, maxDepth, (r) => CANONICAL_TRAVERSAL.has(r.status));
+  if (canonical) {
+    return {
+      found: true,
+      from,
+      to,
+      hops: canonical,
+      reason: `Path of ${canonical.length} hop(s). Statuses are per-edge; inferred hops are not canonical.`,
+    };
+  }
+  const speculative = walkDirected(
+    view,
+    from,
+    to,
+    maxDepth,
+    (r) => r.status !== "REJECTED" && !CANONICAL_TRAVERSAL.has(r.status)
+  );
+  if (speculative) {
+    return {
+      found: false,
+      from,
+      to,
+      hops: [],
+      reason: SPECULATIVE_TRAVERSAL_REASON,
+    };
   }
   return {
     found: false,
@@ -440,11 +480,11 @@ export function createRelationProposal(
     type: spec.type,
     status: "PROPOSED",
     reason: spec.reason,
-    evidenceMemoryIds: [...(spec.evidenceMemoryIds ?? []), spec.from, spec.to],
+    evidenceMemoryIds: [...(spec.evidenceMemoryIds ?? [])],
     createdAt: now,
     resultingEventIds: [],
     provenance: {
-      sourceMemoryIds: [...(spec.evidenceMemoryIds ?? []), spec.from, spec.to],
+      sourceMemoryIds: [...(spec.evidenceMemoryIds ?? [])],
       sourceEventIds: [],
       agentId: actor.id,
       actorKind: actor.kind,

@@ -74,10 +74,10 @@ describe("NO CANONICAL FILESYSTEM WRITE on Memory path", () => {
       "utf8"
     );
     expect(src).toMatch(/MemoryDomain/);
-    expect(src).toMatch(/this\.domain\.create/);
-    expect(src).toMatch(/this\.domain\.update/);
-    expect(src).toMatch(/this\.domain\.archive/);
-    expect(src).toMatch(/this\.domain\.restore/);
+    expect(src).toMatch(/this\.#domain\.create/);
+    expect(src).toMatch(/this\.#domain\.update/);
+    expect(src).toMatch(/this\.#domain\.archive/);
+    expect(src).toMatch(/this\.#domain\.restore/);
     expect(src).not.toMatch(/writeFile/);
     expect(src).not.toMatch(/localStorage/);
   });

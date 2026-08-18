@@ -13,6 +13,7 @@ import {
 } from "@ailexsi/v2-command-adapter";
 import { MockLlmProvider } from "@ailexsi/v2-cultivation";
 import { startLivePostgres } from "@ailexsi/v2-test-kit";
+import { TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
 import type { Provenance } from "@ailexsi/contracts";
 
 const CORE = "652d01eb06dd0841c3b475023883675af6dcd698";
@@ -40,6 +41,7 @@ describe("CULTIVATION FOUNDATION GATE", () => {
         producer: "v2-cultivation-foundation",
         coreBaselineSha: CORE,
         vaultReferenceSha: VAULT,
+        actor: TEST_SESSION_ACTOR,
       });
       expect(host.storeConstructorName()).toBe("PostgresEventStore");
       const gen = host.generation;

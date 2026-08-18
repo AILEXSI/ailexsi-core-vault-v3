@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { HARBOR_CLASS, type ArtifactProvenance, type Capability, type HarborActor, type HarborActorKind } from "./types.js";
+import {
+  DurableGrantRegistry,
+  getDefaultGrantRegistry,
+  type GrantIdentity,
+} from "./grant-registry.js";
 
 export type DenialCode =
   | "MISSING_CAPABILITY"
@@ -15,6 +20,7 @@ export type DenialCode =
   | "GRANT_CAPABILITY_MISMATCH"
   | "GRANT_ACTION_MISMATCH"
   | "GRANT_ALREADY_USED"
+  | "GRANT_SUBJECT_MISMATCH"
   | "ACTOR_KIND_CANNOT_HOLD_CAPABILITY";
 
 export interface AgencyDenial {
@@ -45,6 +51,7 @@ export interface AuthorizationGrant {
   readonly grantId: string;
   readonly capability: "CANONICAL_COMMIT" | "EXTERNAL_ACTION";
   readonly grantedBy: { readonly id: string; readonly kind: "human" };
+  readonly grantedTo: { readonly id: string; readonly kind: HarborActorKind };
   readonly action: string;
   readonly target: string;
   readonly issuedAt: string;
@@ -118,10 +125,23 @@ const HUMAN_DEFAULT: Capability[] = [
 ];
 const SYSTEM_DEFAULT: Capability[] = ["READ_ONLY", "DERIVED_WRITE"];
 
-const ISSUED_GRANTS = new WeakSet<AuthorizationGrant>();
-
 function nowIso(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/, ".000Z");
+}
+
+function asGrantIdentity(grant: AuthorizationGrant): GrantIdentity {
+  const consumed =
+    "consumed" in grant ? Boolean((grant as { consumed?: boolean }).consumed) : false;
+  return {
+    grantId: grant.grantId,
+    grantedBy: { id: grant.grantedBy.id, kind: grant.grantedBy.kind },
+    grantedTo: { id: grant.grantedTo.id, kind: grant.grantedTo.kind },
+    capability: grant.capability,
+    action: grant.action,
+    target: grant.target,
+    issuedAt: grant.issuedAt,
+    consumed,
+  };
 }
 
 export function normalizeCapability(capability: Capability): Capability {
@@ -252,14 +272,18 @@ export function issueAuthority(actor: HarborActor, now = nowIso()): AgencyAuthor
   });
 }
 
-export function issueAuthorization(
+export interface IssueAuthorizationSpec {
+  grantedTo: { id: string; kind: HarborActorKind };
+  capability: "CANONICAL_COMMIT" | "EXTERNAL_ACTION";
+  action: string;
+  target: string;
+  now?: string;
+}
+
+export function issueAuthorizationOn(
+  registry: DurableGrantRegistry,
   granter: HarborActor,
-  spec: {
-    capability: "CANONICAL_COMMIT" | "EXTERNAL_ACTION";
-    action: string;
-    target: string;
-    now?: string;
-  }
+  spec: IssueAuthorizationSpec
 ): AuthorizationGrant {
   const snap = snapshotActor(granter);
   if (snap.kind !== "human") {
@@ -275,11 +299,24 @@ export function issueAuthorization(
       }
     );
   }
+  if (!spec.grantedTo?.id) {
+    throw new AgencyDeniedError(
+      snap,
+      spec.capability,
+      "AuthorizationGrant requires grantedTo",
+      {
+        code: "GRANT_SUBJECT_MISMATCH",
+        action: spec.action,
+        target: spec.target,
+      }
+    );
+  }
   evaluateAccess(snap, spec.capability, spec.action, spec.target);
   const grant: AuthorizationGrant = Object.freeze({
     grantId: randomUUID(),
     capability: spec.capability,
     grantedBy: Object.freeze({ id: snap.id, kind: "human" as const }),
+    grantedTo: Object.freeze({ id: spec.grantedTo.id, kind: spec.grantedTo.kind }),
     action: spec.action,
     target: spec.target,
     issuedAt: spec.now ?? nowIso(),
@@ -288,12 +325,43 @@ export function issueAuthorization(
       notFromProposalAcceptance: true as const,
     }),
   });
-  ISSUED_GRANTS.add(grant);
+  registry.recordIssued(asGrantIdentity(grant));
   return grant;
 }
 
-export function isIssuedGrant(grant: AuthorizationGrant): boolean {
-  return ISSUED_GRANTS.has(grant);
+export function issueAuthorization(
+  granter: HarborActor,
+  spec: IssueAuthorizationSpec
+): AuthorizationGrant {
+  return issueAuthorizationOn(getDefaultGrantRegistry(), granter, spec);
+}
+
+/** Whole-record compare against the Durable Grant Registry. Not grantId membership. */
+export function isIssuedGrant(
+  grant: AuthorizationGrant,
+  registry: DurableGrantRegistry = getDefaultGrantRegistry()
+): boolean {
+  if (!grant?.grantedTo?.id) return false;
+  return registry.isIssuedGrant(asGrantIdentity(grant));
+}
+
+export function isConsumedGrant(
+  grant: AuthorizationGrant,
+  registry: DurableGrantRegistry = getDefaultGrantRegistry()
+): boolean {
+  if (!grant?.grantedTo?.id) return false;
+  return registry.isConsumed(asGrantIdentity(grant));
+}
+
+export function markGrantConsumed(
+  grant: AuthorizationGrant,
+  registry: DurableGrantRegistry = getDefaultGrantRegistry()
+): void {
+  registry.markConsumed(asGrantIdentity(grant));
+}
+
+export function issuedGrantCount(registry: DurableGrantRegistry = getDefaultGrantRegistry()): number {
+  return registry.issuedCount();
 }
 
 export function isAuditableAction(capability: Capability): boolean {

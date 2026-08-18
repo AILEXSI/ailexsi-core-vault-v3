@@ -7,6 +7,7 @@ import {
 } from "@ailexsi/v2-cultivation";
 import { InMemoryEventStore } from "@ailexsi/v2-test-kit";
 import type { Provenance } from "@ailexsi/contracts";
+import { authorizedCreate, viaCanonicalCommit } from "../helpers/authorized-write.js";
 
 function provenance(): Provenance {
   return {
@@ -46,27 +47,34 @@ describe("Cultivation Foundation unit", () => {
     const { proposal } = await cult.chat(s.id, "x");
     cult.setProposalStatus(s.id, proposal.id, "rejected");
     const before = store.count();
-    await expect(cult.acceptCanonical(s.id, proposal.id)).rejects.toThrow(
-      /Cannot accept/
-    );
+    expect(() => cult.acceptCanonical(s.id, proposal.id)).toThrow(/Cannot accept/);
     expect(store.count()).toBe(before);
   });
 
   it("double accept fails without second write", async () => {
     const s = cult.createSession();
     const { proposal } = await cult.chat(s.id, "x");
-    await cult.acceptCanonical(s.id, proposal.id, {
+    const { draft } = cult.acceptCanonical(s.id, proposal.id, {
       idempotencyKey: randomUUID(),
     });
+    await viaCanonicalCommit(
+      () =>
+        adapter.create({
+          content: draft.content,
+          provenance: draft.provenance,
+          idempotencyKey: draft.idempotencyKey,
+        }),
+      { action: "memory.create", target: proposal.id }
+    );
     const afterFirst = store.count();
-    await expect(
+    expect(() =>
       cult.acceptCanonical(s.id, proposal.id, { idempotencyKey: randomUUID() })
-    ).rejects.toThrow(/already accepted/);
+    ).toThrow(/already accepted/);
     expect(store.count()).toBe(afterFirst);
   });
 
   it("accept update targets existing memory", async () => {
-    const existing = await adapter.create({
+    const existing = await authorizedCreate(adapter, {
       content: { type: "text", text: "orig" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
@@ -76,19 +84,30 @@ describe("Cultivation Foundation unit", () => {
       targetMemoryId: existing.identity.id,
     });
     expect(proposal.kind).toBe("update_memory");
-    const { cell } = await cult.acceptCanonical(s.id, proposal.id, {
+    const { draft } = cult.acceptCanonical(s.id, proposal.id, {
       idempotencyKey: randomUUID(),
     });
+    const cell = await viaCanonicalCommit(
+      () =>
+        adapter.update({
+          memoryId: draft.memoryId!,
+          content: draft.content,
+          provenance: draft.provenance,
+          changeReason: draft.changeReason,
+          idempotencyKey: draft.idempotencyKey,
+        }),
+      { action: "memory.update", target: proposal.id }
+    );
     expect(cell.identity.id).toBe(existing.identity.id);
     expect(cell.currentVersion).toBe(2);
   });
 
-  it("accept without adapter fails", async () => {
+  it("accept without adapter returns a draft and does not write", async () => {
     const bare = new CultivationService(new MockLlmProvider("x"));
     const s = bare.createSession();
     const { proposal } = await bare.chat(s.id, "x");
-    await expect(bare.acceptCanonical(s.id, proposal.id)).rejects.toThrow(
-      /MemoryCommandAdapter required/
-    );
+    const { draft } = bare.acceptCanonical(s.id, proposal.id);
+    expect(draft.kind).toBe("create_memory");
+    expect(store.count()).toBe(0);
   });
 });

@@ -5,9 +5,11 @@
  *
  *   UI / Tauri invoke
  *        ↓
- *   HTTP 127.0.0.1:DESKTOP_HOST_PORT
+ *   HTTP 127.0.0.1:DESKTOP_HOST_PORT  (Channel Token)
  *        ↓
- *   DesktopHost (one createCoreRuntime)
+ *   DesktopHost (Session Actor)
+ *        ↓
+ *   AgencyBoundary.commitCanonical
  *        ↓
  *   PostgresEventStore
  */
@@ -47,11 +49,24 @@ function send(
   const json = JSON.stringify(body);
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type",
   });
   res.end(json);
+}
+
+function readChannelToken(req: http.IncomingMessage): string | undefined {
+  const header = req.headers["x-channel-token"];
+  if (typeof header === "string" && header.length > 0) return header;
+  const auth = req.headers.authorization;
+  if (typeof auth === "string" && auth.startsWith("Bearer ")) {
+    return auth.slice("Bearer ".length);
+  }
+  return undefined;
+}
+
+function requireChannelToken(req: http.IncomingMessage): boolean {
+  const expected = process.env.DESKTOP_HOST_TOKEN;
+  const got = readChannelToken(req);
+  return Boolean(expected && got && got === expected);
 }
 
 const COMMANDS = new Set<DesktopMemoryCommand>([
@@ -77,6 +92,7 @@ const COMMANDS = new Set<DesktopMemoryCommand>([
 
 /**
  * Start HTTP bridge. Starts DesktopHost once (long-lived) with given options.
+ * Binds 127.0.0.1 only. Channel Token required on /commands. No CORS *.
  */
 export async function startDesktopBridgeServer(
   options: DesktopHostStartOptions & {
@@ -91,10 +107,18 @@ export async function startDesktopBridgeServer(
       producer: options.producer ?? "v2-desktop-bridge",
       environment: options.environment ?? "development",
       migrate: options.migrate,
+      harborPersistDir: options.harborPersistDir,
+      actor: options.actor,
     });
+  } else if (options.actor && !host.getSessionActor()) {
+    host.attachActor(options.actor);
   }
 
-  const bindHost = options.host ?? "127.0.0.1";
+  const requested = options.host ?? "127.0.0.1";
+  if (requested !== "127.0.0.1" && requested !== "localhost") {
+    throw new Error("Desktop bridge binds 127.0.0.1 only");
+  }
+  const bindHost = "127.0.0.1";
   const preferredPort =
     options.port ??
     Number(process.env.DESKTOP_HOST_PORT ?? DEFAULT_DESKTOP_HOST_PORT);
@@ -124,6 +148,10 @@ export async function startDesktopBridgeServer(
       }
 
       if (req.method === "POST" && url.pathname.startsWith("/commands/")) {
+        if (!requireChannelToken(req)) {
+          send(res, 401, { ok: false, error: "missing channel token" });
+          return;
+        }
         const command = url.pathname.slice("/commands/".length) as DesktopMemoryCommand;
         if (!COMMANDS.has(command)) {
           send(res, 404, { error: `unknown command: ${command}` });
@@ -160,8 +188,6 @@ export async function startDesktopBridgeServer(
       await new Promise<void>((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()));
       });
-      // Do not stop DesktopHost here if process-wide singleton should live —
-      // callers that own lifecycle may call getDesktopHost().stop().
     },
   };
 }

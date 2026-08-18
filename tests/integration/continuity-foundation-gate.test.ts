@@ -19,6 +19,7 @@ import {
 import { packagesIdentityEqual } from "@ailexsi/v2-continuity";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
 import type { Provenance } from "@ailexsi/contracts";
+import { authorizedCreate, TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
 
 const CORE = "652d01eb06dd0841c3b475023883675af6dcd698";
 const VAULT = "061e444389090c54e431b0e8243e82764f2c198e";
@@ -73,7 +74,7 @@ describe("CONTINUITY FOUNDATION GATE", () => {
       const created = [];
       for (const text of ["cont-a", "cont-b", "cont-c"]) {
         created.push(
-          await rtA.adapter.create({
+          await authorizedCreate(rtA.adapter, {
             content: { type: "text", text },
             provenance: provenance(),
             idempotencyKey: randomUUID(),
@@ -184,6 +185,7 @@ describe("CONTINUITY FOUNDATION GATE", () => {
         producer: "v2-continuity-desktop",
         coreBaselineSha: CORE,
         vaultReferenceSha: VAULT,
+        actor: TEST_SESSION_ACTOR,
       });
       expect(host.storeConstructorName()).toBe("PostgresEventStore");
       const gen = host.generation;

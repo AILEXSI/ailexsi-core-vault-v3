@@ -104,9 +104,13 @@ async function httpCommand(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   args: Record<string, any> = {}
 ): Promise<unknown> {
+  const token =
+    (import.meta as { env?: Record<string, string> }).env?.VITE_DESKTOP_HOST_TOKEN;
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (token) headers["x-channel-token"] = token;
   const res = await fetch(`${bridgeBase()}/commands/${command}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers,
     body: JSON.stringify(args),
   });
   const body = await res.json();

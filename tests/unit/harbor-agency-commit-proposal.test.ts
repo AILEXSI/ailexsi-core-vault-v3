@@ -57,6 +57,7 @@ describe("Agency proposal persist", () => {
     const events = store.count();
     let executed = false;
     const grant = issueAuthorization(HUMAN, {
+      grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "proposal.commit",
       target: proposal.proposalId,
@@ -94,6 +95,7 @@ describe("Agency proposal persist", () => {
     const proposal = await harbor.propose(AI, { text: "remember tea", sourceMemoryIds: [] }, NOW);
     harbor.decideProposal(proposal.proposalId, "ACCEPTED", HUMAN, { now: NOW });
     const grant = issueAuthorization(HUMAN, {
+      grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "proposal.commit",
       target: proposal.proposalId,
@@ -136,6 +138,7 @@ describe("Agency proposal persist", () => {
     const proposal = await harbor.propose(AI, { text: "remember tea", sourceMemoryIds: [] }, NOW);
     harbor.decideProposal(proposal.proposalId, "ACCEPTED", HUMAN, { now: NOW });
     const grant = issueAuthorization(HUMAN, {
+      grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "proposal.commit",
       target: proposal.proposalId,

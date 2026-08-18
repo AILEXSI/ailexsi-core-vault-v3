@@ -11,9 +11,9 @@
  * NEVER writes filesystem.
  */
 
-import type { EventStore } from "@ailexsi/eventstore";
 import type { UUID } from "@ailexsi/contracts";
 import type { MemoryCommandAdapter } from "./memory-command-adapter.js";
+import type { EventStoreRead } from "./event-store-read.js";
 import type {
   MemoryDetailView,
   MemoryListItem,
@@ -43,7 +43,7 @@ export type MemoryHistoryEntry = {
 };
 
 export interface MemoryQueryServiceDeps {
-  store: EventStore;
+  store: EventStoreRead;
   adapter: MemoryCommandAdapter;
   readModel: MemoryReadModel;
   /**

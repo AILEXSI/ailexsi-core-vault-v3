@@ -28,7 +28,9 @@ import {
   type LlmProvider,
 } from "@ailexsi/v2-cultivation";
 import {
+  AgencyDeniedError,
   HarborService,
+  sealActor,
   type ContextAssemblyInput,
   type ContradictionResolution,
   type EpistemicStatus,
@@ -92,6 +94,8 @@ export interface DesktopHostStartOptions extends CreateCoreRuntimeOptions {
    * Defaults to HARBOR_DERIVED_INDEX_PATH when set. Never EventStore.
    */
   harborPersistDir?: string;
+  /** Session Actor for this host process. Not taken from request JSON. */
+  actor?: HarborActor;
 }
 
 export class DesktopHost {
@@ -103,6 +107,7 @@ export class DesktopHost {
   private llm: LlmProvider = new MockLlmProvider(
     "Cultivation foundation mock proposal text"
   );
+  private sessionActor: HarborActor | null = null;
 
   /** True when a CoreRuntime is retained for process lifetime. */
   get isRunning(): boolean {
@@ -139,7 +144,20 @@ export class DesktopHost {
       vaultReferenceSha: "061e444389090c54e431b0e8243e82764f2c198e",
       persistDir: persistDir || undefined,
     });
+    if (options.actor) {
+      this.sessionActor = sealActor(options.actor);
+    }
     this.startGeneration += 1;
+  }
+
+  /** Bind the Session Actor. Request actorKind/actorId are never the actor. */
+  attachActor(actor: HarborActor): void {
+    this.sessionActor = sealActor(actor);
+  }
+
+  /** Session Actor for this host. Null when none is attached. */
+  getSessionActor(): HarborActor | null {
+    return this.sessionActor;
   }
 
   /** Test-only: replace LLM before start (or after stop). */
@@ -156,6 +174,7 @@ export class DesktopHost {
     this.runtime = null;
     this.cultivation = null;
     this.harbor = null;
+    this.sessionActor = null;
     await rt.close();
   }
 
@@ -206,10 +225,16 @@ export class DesktopHost {
   ): Promise<MemoryDetailView> {
     const rt = this.requireRuntime();
     this.commandCount += 1;
-    const cell = await rt.adapter.create({
-      ...cmd,
-      idempotencyKey: cmd.idempotencyKey ?? randomUUID(),
-      createdBy: cmd.createdBy ?? "v2-desktop",
+    const actor = this.requireSessionActor();
+    const key = cmd.idempotencyKey ?? randomUUID();
+    const cell = await this.commitThroughAgency(actor, "memory.create", key, async () => {
+      const created = await rt.adapter.create({
+        ...cmd,
+        idempotencyKey: key,
+        createdBy: actor.id,
+      });
+      const stream = await rt.store.getByAggregate(created.identity.id);
+      return { result: created, eventIds: stream.map((e) => e.event.eventId) };
     });
     const view = await this.syncReadModel(cell.identity.id);
     if (!view) {
@@ -231,10 +256,16 @@ export class DesktopHost {
   ): Promise<MemoryDetailView> {
     const rt = this.requireRuntime();
     this.commandCount += 1;
-    const cell = await rt.adapter.update({
-      ...cmd,
-      idempotencyKey: cmd.idempotencyKey ?? randomUUID(),
-      createdBy: cmd.createdBy ?? "v2-desktop",
+    const actor = this.requireSessionActor();
+    const key = cmd.idempotencyKey ?? randomUUID();
+    const cell = await this.commitThroughAgency(actor, "memory.update", String(cmd.memoryId), async () => {
+      const updated = await rt.adapter.update({
+        ...cmd,
+        idempotencyKey: key,
+        createdBy: actor.id,
+      });
+      const stream = await rt.store.getByAggregate(updated.identity.id);
+      return { result: updated, eventIds: stream.map((e) => e.event.eventId) };
     });
     const view = await this.syncReadModel(cell.identity.id);
     if (!view) {
@@ -250,10 +281,16 @@ export class DesktopHost {
   ): Promise<MemoryDetailView> {
     const rt = this.requireRuntime();
     this.commandCount += 1;
-    const cell = await rt.adapter.archive({
-      ...cmd,
-      idempotencyKey: cmd.idempotencyKey ?? randomUUID(),
-      createdBy: cmd.createdBy ?? "v2-desktop",
+    const actor = this.requireSessionActor();
+    const key = cmd.idempotencyKey ?? randomUUID();
+    const cell = await this.commitThroughAgency(actor, "memory.archive", String(cmd.memoryId), async () => {
+      const archived = await rt.adapter.archive({
+        ...cmd,
+        idempotencyKey: key,
+        createdBy: actor.id,
+      });
+      const stream = await rt.store.getByAggregate(archived.identity.id);
+      return { result: archived, eventIds: stream.map((e) => e.event.eventId) };
     });
     const view = await this.syncReadModel(cell.identity.id);
     if (!view) {
@@ -269,10 +306,16 @@ export class DesktopHost {
   ): Promise<MemoryDetailView> {
     const rt = this.requireRuntime();
     this.commandCount += 1;
-    const cell = await rt.adapter.restore({
-      ...cmd,
-      idempotencyKey: cmd.idempotencyKey ?? randomUUID(),
-      createdBy: cmd.createdBy ?? "v2-desktop",
+    const actor = this.requireSessionActor();
+    const key = cmd.idempotencyKey ?? randomUUID();
+    const cell = await this.commitThroughAgency(actor, "memory.restore", String(cmd.memoryId), async () => {
+      const restored = await rt.adapter.restore({
+        ...cmd,
+        idempotencyKey: key,
+        createdBy: actor.id,
+      });
+      const stream = await rt.store.getByAggregate(restored.identity.id);
+      return { result: restored, eventIds: stream.map((e) => e.event.eventId) };
     });
     const view = await this.syncReadModel(cell.identity.id);
     if (!view) {
@@ -402,16 +445,48 @@ export class DesktopHost {
   }
 
   async cultivationProposalAccept(args: Record<string, unknown>) {
-    this.requireRuntime();
+    const rt = this.requireRuntime();
     this.commandCount += 1;
-    return this.requireCultivation().acceptCanonical(
-      String(args.sessionId ?? ""),
-      String(args.proposalId ?? ""),
-      {
-        editedText: args.editedText as string | undefined,
-        idempotencyKey: args.idempotencyKey as string | undefined,
-      }
-    );
+    const actor = this.requireSessionActor();
+    if (actor.kind !== "human") {
+      throw new AgencyDeniedError(
+        actor,
+        "CANONICAL_COMMIT",
+        "AI session cannot ACCEPT",
+        { code: "HUMAN_AUTHORIZATION_REQUIRED", action: "cultivation.proposal.accept" }
+      );
+    }
+    const proposalId = String(args.proposalId ?? "");
+    return this.commitThroughAgency(actor, "cultivation.accept", proposalId, async () => {
+      const { proposal, draft } = this.requireCultivation().acceptCanonical(
+        String(args.sessionId ?? ""),
+        proposalId,
+        {
+          editedText: args.editedText as string | undefined,
+          idempotencyKey: args.idempotencyKey as string | undefined,
+          createdBy: actor.id,
+        }
+      );
+      const cell =
+        draft.kind === "update_memory"
+          ? await rt.adapter.update({
+              memoryId: draft.memoryId!,
+              content: draft.content,
+              changeReason: draft.changeReason,
+              provenance: draft.provenance,
+              idempotencyKey: draft.idempotencyKey,
+              createdBy: actor.id,
+            })
+          : await rt.adapter.create({
+              content: draft.content,
+              provenance: draft.provenance,
+              idempotencyKey: draft.idempotencyKey,
+              createdBy: actor.id,
+            });
+      proposal.acceptedMemoryId = cell.identity.id;
+      const stream = await rt.store.getByAggregate(cell.identity.id);
+      return { result: { proposal, cell }, eventIds: stream.map((e) => e.event.eventId) };
+    });
   }
 
   async continuityExport(args: Record<string, unknown>) {
@@ -503,13 +578,47 @@ export class DesktopHost {
     return this.harbor;
   }
 
-  private actorOf(args: Record<string, unknown>): HarborActor {
-    const kind = args.actorKind === "ai" || args.actorKind === "system" ? args.actorKind : "human";
-    return {
-      id: String(args.actorId ?? (kind === "human" ? "desktop-user" : "desktop-ai")),
-      kind,
-      authorizeCanonical: kind === "human",
-    };
+  private requireSessionActor(): HarborActor {
+    if (!this.sessionActor) {
+      throw new AgencyDeniedError(
+        { id: "unauthenticated", kind: "system" },
+        "CANONICAL_COMMIT",
+        "No session actor — mutate fails closed",
+        { code: "HUMAN_AUTHORIZATION_REQUIRED", action: "session" }
+      );
+    }
+    return this.sessionActor;
+  }
+
+  /**
+   * Session Actor only. Request actorKind/actorId are ignored for auth.
+   * Channel Token is not an actor.
+   */
+  private actorOf(_args: Record<string, unknown>): HarborActor {
+    return this.requireSessionActor();
+  }
+
+  private async commitThroughAgency<T>(
+    actor: HarborActor,
+    action: string,
+    target: string,
+    execute: () => Promise<{ result: T; eventIds: string[] }>
+  ): Promise<T> {
+    const harbor = this.requireHarbor();
+    const grant = harbor.agency.issueAuthorization(actor, {
+      grantedTo: { id: actor.id, kind: actor.kind },
+      capability: "CANONICAL_COMMIT",
+      action,
+      target,
+    });
+    const { result } = await harbor.commitCanonical({
+      actor,
+      grant,
+      action,
+      target,
+      execute,
+    });
+    return result;
   }
 
   private async loadCells(): Promise<MemoryCell[]> {

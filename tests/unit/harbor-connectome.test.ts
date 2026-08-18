@@ -9,6 +9,7 @@ import {
   issueAuthorization,
   isConnectomeRelationContent,
 } from "@ailexsi/v3-harbor";
+import { authorizedCreate } from "../helpers/authorized-write.js";
 
 const HUMAN = { id: "martin", kind: "human" as const, authorizeCanonical: true };
 const AI = { id: "grok", kind: "ai" as const };
@@ -37,19 +38,25 @@ async function denialOfAsync(fn: () => Promise<unknown>): Promise<AgencyDeniedEr
 async function twoRelatedMemories() {
   const store = new InMemoryEventStore();
   const adapter = new MemoryCommandAdapter({ store, environment: "test" });
-  const parent = await adapter.create({
+  const parent = await authorizedCreate(adapter, {
     content: { type: "text", text: "user prefers tea" },
     context: { project: "kitchen", tags: ["drink"] },
     provenance: provenance(),
     idempotencyKey: randomUUID(),
   });
-  const child = await adapter.create({
+  const child = await authorizedCreate(adapter, {
     content: { type: "text", text: "user prefers coffee" },
     context: { project: "kitchen", tags: ["drink"] },
     provenance: provenance([parent.identity.id]),
     idempotencyKey: randomUUID(),
   });
-  return { store, adapter, parent, child, cells: [parent, child] };
+  const witness = await authorizedCreate(adapter, {
+    content: { type: "text", text: "witness note about the pair" },
+    context: { project: "kitchen", tags: ["evidence"] },
+    provenance: provenance(),
+    idempotencyKey: randomUUID(),
+  });
+  return { store, adapter, parent, child, witness, cells: [parent, child, witness] };
 }
 
 describe("V3 Connectome", () => {
@@ -135,6 +142,7 @@ describe("V3 Connectome", () => {
     harbor.decideRelation(proposal.proposalId, "ACCEPTED", HUMAN, NOW);
     const events = store.count();
     const grant = issueAuthorization(HUMAN, {
+      grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "relation.commit",
       target: proposal.proposalId,
@@ -166,17 +174,18 @@ describe("V3 Connectome", () => {
   });
 
   it("human-authorized relation persist writes a Memory cell and stays explainable", async () => {
-    const { store, adapter, parent, child, cells } = await twoRelatedMemories();
+    const { store, adapter, parent, child, witness, cells } = await twoRelatedMemories();
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
     const proposal = harbor.proposeRelation(AI, {
       from: parent.identity.id,
       to: child.identity.id,
       type: "SUPPORTS",
       reason: "Human-reviewed support",
-      evidenceMemoryIds: [parent.identity.id],
+      evidenceMemoryIds: [witness.identity.id],
     }, NOW);
     harbor.decideRelation(proposal.proposalId, "ACCEPTED", HUMAN, NOW);
     const grant = issueAuthorization(HUMAN, {
+      grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "relation.commit",
       target: proposal.proposalId,
@@ -215,7 +224,12 @@ describe("V3 Connectome", () => {
   it("AI cannot self-authorize a relation grant", () => {
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
     expect(() =>
-      issueAuthorization(AI, { capability: "CANONICAL_COMMIT", action: "relation.commit", target: "x" })
+      issueAuthorization(AI, {
+        grantedTo: { id: AI.id, kind: AI.kind },
+        capability: "CANONICAL_COMMIT",
+        action: "relation.commit",
+        target: "x",
+      })
     ).toThrow(AgencyDeniedError);
     expect(harbor.relationProposals.size).toBe(0);
   });

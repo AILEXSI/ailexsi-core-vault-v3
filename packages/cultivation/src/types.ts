@@ -55,6 +55,17 @@ export interface ChatProposal {
 
 export type CultivationProposal = MemoryMutationProposal | ChatProposal;
 
+/** Draft produced by acceptCanonical. Not a write. Host persist only. */
+export interface CultivationAcceptDraft {
+  kind: "create_memory" | "update_memory";
+  memoryId?: UUID;
+  content: MemoryContent;
+  provenance: Provenance;
+  changeReason?: string;
+  idempotencyKey: string;
+  createdBy?: string;
+}
+
 export interface LlmProvider {
   complete(prompt: string, context: string): Promise<string>;
 }

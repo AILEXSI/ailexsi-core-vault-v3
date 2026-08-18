@@ -12,6 +12,7 @@ import {
   type DesktopHost,
 } from "@ailexsi/v2-command-adapter";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
+import { TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
 import type { Provenance, MemoryVersion } from "@ailexsi/contracts";
 import type { MemoryDetailView } from "@ailexsi/v2-read-models";
 
@@ -37,6 +38,7 @@ describe("SLICE A Desktop IPC → long-lived CoreRuntime → PostgresEventStore"
       connectionString: live.connectionString,
       environment: "test",
       producer: "v2-desktop-slice-a",
+      actor: TEST_SESSION_ACTOR,
     });
     runtimeRef = host.runtimeIdentity();
   }, 180_000);

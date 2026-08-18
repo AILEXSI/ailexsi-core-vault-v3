@@ -29,10 +29,19 @@ fn proxy_get(path: &str) -> Result<Value, String> {
     .map_err(|e| format!("invalid DesktopHost JSON: {e}"))
 }
 
+fn channel_token() -> Option<String> {
+  std::env::var("DESKTOP_HOST_TOKEN")
+    .ok()
+    .filter(|s| !s.is_empty())
+}
+
 fn proxy_post(path: &str, body: Value) -> Result<Value, String> {
   let url = format!("{}{}", host_base(), path);
-  let resp = ureq::post(&url)
-    .timeout(std::time::Duration::from_secs(30))
+  let mut req = ureq::post(&url).timeout(std::time::Duration::from_secs(30));
+  if let Some(token) = channel_token() {
+    req = req.set("x-channel-token", &token);
+  }
+  let resp = req
     .send_json(body)
     .map_err(|e| format!("DesktopHost command failed at {url}: {e}"))?;
   resp

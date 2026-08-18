@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { MemoryCommandAdapter } from "@ailexsi/v2-command-adapter";
 import { InMemoryEventStore } from "@ailexsi/v2-test-kit";
 import type { Provenance } from "@ailexsi/contracts";
+import { authorizedCreate } from "../helpers/authorized-write.js";
 import {
   AgencyDeniedError,
   HarborService,
@@ -57,7 +58,7 @@ describe("Agentic failure model", () => {
   it("FLAGGED not canonicalized: AI proposal vs canonical preference", async () => {
     const store = new InMemoryEventStore();
     const adapter = new MemoryCommandAdapter({ store, environment: "test" });
-    const cell = await adapter.create({
+    const cell = await authorizedCreate(adapter, {
       content: { type: "text", text: "user prefers tea" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),

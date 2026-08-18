@@ -10,6 +10,7 @@ import { IdempotencyConflictError } from "@ailexsi/contracts";
 import { MemoryCommandAdapter } from "@ailexsi/v2-command-adapter";
 import { MemoryReadModel } from "@ailexsi/v2-read-models";
 import { InMemoryEventStore } from "@ailexsi/v2-test-kit";
+import { authorizedCreate, authorizedUpdate, authorizedArchive, authorizedRestore } from "../helpers/authorized-write.js";
 
 function provenance(): Provenance {
   return {
@@ -39,7 +40,7 @@ describe("Memory command path (V2 → Core → EventStore → V2 read)", () => {
   }
 
   it("Create → Event → Projection → V2 read", async () => {
-    const cell = await adapter.create({
+    const cell = await authorizedCreate(adapter, {
       content: { type: "text", text: "create-me" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
@@ -55,12 +56,12 @@ describe("Memory command path (V2 → Core → EventStore → V2 read)", () => {
   });
 
   it("Update → Event → Projection → V2 read", async () => {
-    const created = await adapter.create({
+    const created = await authorizedCreate(adapter, {
       content: { type: "text", text: "v1" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
-    const updated = await adapter.update({
+    const updated = await authorizedUpdate(adapter, {
       memoryId: created.identity.id,
       content: { type: "text", text: "v2" },
       changeReason: "edit",
@@ -75,12 +76,12 @@ describe("Memory command path (V2 → Core → EventStore → V2 read)", () => {
   });
 
   it("Archive → Event → Projection → V2 read", async () => {
-    const created = await adapter.create({
+    const created = await authorizedCreate(adapter, {
       content: { type: "text", text: "arch" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
-    const archived = await adapter.archive({
+    const archived = await authorizedArchive(adapter, {
       memoryId: created.identity.id,
       reason: "done",
       idempotencyKey: randomUUID(),
@@ -93,16 +94,16 @@ describe("Memory command path (V2 → Core → EventStore → V2 read)", () => {
   });
 
   it("Restore → Event → Projection → V2 read", async () => {
-    const created = await adapter.create({
+    const created = await authorizedCreate(adapter, {
       content: { type: "text", text: "rest" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
-    await adapter.archive({
+    await authorizedArchive(adapter, {
       memoryId: created.identity.id,
       idempotencyKey: randomUUID(),
     });
-    const restored = await adapter.restore({
+    const restored = await authorizedRestore(adapter, {
       memoryId: created.identity.id,
       reason: "back",
       idempotencyKey: randomUUID(),
@@ -117,12 +118,12 @@ describe("Memory command path (V2 → Core → EventStore → V2 read)", () => {
 
   it("idempotency: same key + same payload → no duplicate", async () => {
     const key = randomUUID();
-    const a = await adapter.create({
+    const a = await authorizedCreate(adapter, {
       content: { type: "text", text: "same" },
       provenance: provenance(),
       idempotencyKey: key,
     });
-    const b = await adapter.create({
+    const b = await authorizedCreate(adapter, {
       content: { type: "text", text: "same" },
       provenance: provenance(),
       idempotencyKey: key,
@@ -137,13 +138,13 @@ describe("Memory command path (V2 → Core → EventStore → V2 read)", () => {
     // original cell (Phase 07 behavior). Payload conflict is enforced by EventStore
     // when append is attempted — the contract V2 depends on for canonical writes.
     const key = randomUUID();
-    const first = await adapter.create({
+    const first = await authorizedCreate(adapter, {
       content: { type: "text", text: "a" },
       provenance: provenance(),
       idempotencyKey: key,
     });
     // Domain-level: returns original without second append
-    const second = await adapter.create({
+    const second = await authorizedCreate(adapter, {
       content: { type: "text", text: "b" },
       provenance: provenance(),
       idempotencyKey: key,
@@ -170,17 +171,17 @@ describe("Memory command path (V2 → Core → EventStore → V2 read)", () => {
   });
 
   it("AAS-54 style replay: CLEAR → REPLAY → IDENTICAL for V2 read model", async () => {
-    const c = await adapter.create({
+    const c = await authorizedCreate(adapter, {
       content: { type: "text", text: "one" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
-    await adapter.update({
+    await authorizedUpdate(adapter, {
       memoryId: c.identity.id,
       content: { type: "text", text: "two" },
       idempotencyKey: randomUUID(),
     });
-    await adapter.archive({
+    await authorizedArchive(adapter, {
       memoryId: c.identity.id,
       idempotencyKey: randomUUID(),
     });

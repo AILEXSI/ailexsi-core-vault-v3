@@ -6,6 +6,7 @@ import path from "node:path";
 import { MemoryCommandAdapter } from "@ailexsi/v2-command-adapter";
 import { InMemoryEventStore } from "@ailexsi/v2-test-kit";
 import type { Provenance } from "@ailexsi/contracts";
+import { authorizedCreate } from "../helpers/authorized-write.js";
 import {
   AgencyDeniedError,
   CULTIVATION_PROPOSAL_SCHEMA,
@@ -47,19 +48,19 @@ afterEach(() => {
 async function fixture() {
   const store = new InMemoryEventStore();
   const adapter = new MemoryCommandAdapter({ store, environment: "test" });
-  const a = await adapter.create({
+  const a = await authorizedCreate(adapter, {
     content: { type: "text", text: "user prefers tea" },
     context: { project: "kitchen", tags: ["drink", "goal"] },
     provenance: provenance(),
     idempotencyKey: randomUUID(),
   });
-  const b = await adapter.create({
+  const b = await authorizedCreate(adapter, {
     content: { type: "text", text: "user prefers coffee" },
     context: { project: "kitchen", tags: ["drink"] },
     provenance: provenance(),
     idempotencyKey: randomUUID(),
   });
-  const c = await adapter.create({
+  const c = await authorizedCreate(adapter, {
     content: { type: "text", text: "goal: ship v3" },
     context: { project: "kitchen", tags: ["goal"] },
     provenance: provenance(),

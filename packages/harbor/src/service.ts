@@ -8,6 +8,7 @@ import {
 } from "./epistemic.js";
 import { AgencyBoundary, type CanonicalCommitRequest, type ExternalActionRequest } from "./agency-boundary.js";
 import type { CanonicalActionRecord } from "./agency.js";
+import { DurableGrantRegistry, getDefaultGrantRegistry } from "./grant-registry.js";
 import { detectContradictions, resolveContradiction } from "./contradiction.js";
 import { temporalFromMemory } from "./temporal.js";
 import {
@@ -87,7 +88,8 @@ export class HarborService {
   readonly imports = new Map<string, ImportSession>();
   readonly provider: HarborProvider;
   readonly derivedIndex: FileDerivedIndex | null;
-  readonly agency = new AgencyBoundary();
+  readonly grantRegistry: DurableGrantRegistry;
+  readonly agency: AgencyBoundary;
 
   private persistSuspended = false;
   private derivedStatus: DerivedIndexStatus = "empty";
@@ -101,6 +103,10 @@ export class HarborService {
   ) {
     this.provider = provider ?? new MockHarborProvider();
     this.derivedIndex = pins.persistDir ? new FileDerivedIndex(pins.persistDir) : null;
+    this.grantRegistry = pins.persistDir
+      ? new DurableGrantRegistry(pins.persistDir)
+      : getDefaultGrantRegistry();
+    this.agency = new AgencyBoundary(this.grantRegistry);
     if (this.derivedIndex) {
       this.loadFromDisk();
     }

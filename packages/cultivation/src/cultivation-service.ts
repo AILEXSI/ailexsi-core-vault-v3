@@ -2,7 +2,8 @@
  * Cultivation service — proposal loop.
  *
  * Core-backed context → LLM → EPHEMERAL proposal → human decision →
- * acceptCanonical only → MemoryCommandAdapter → EventStore.
+ * acceptCanonical returns a draft only. EventStore write is DesktopHost
+ * wrapping the draft in AgencyBoundary.commitCanonical.
  *
  * Sessions and proposals are EPHEMERAL (in-process Map). Not a second SoT.
  */
@@ -11,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import type { MemoryCell, UUID } from "@ailexsi/contracts";
 import type { MemoryCommandAdapter } from "@ailexsi/v2-command-adapter";
 import type {
+  CultivationAcceptDraft,
   CultivationMessage,
   CultivationProposal,
   CultivationSession,
@@ -151,17 +153,15 @@ export class CultivationService {
   }
 
   /**
-   * Accept a memory mutation proposal → Core command path only.
-   * Invalid/double accept throws and must not write.
+   * Accept a memory mutation proposal as a draft only.
+   * Does not call adapter.create/update. Does not write EventStore.
+   * DesktopHost persist is the only write, via commitCanonical.
    */
-  async acceptCanonical(
+  acceptCanonical(
     sessionId: string,
     proposalId: string,
-    options?: { editedText?: string; idempotencyKey?: string }
-  ): Promise<{ proposal: MemoryMutationProposal; cell: MemoryCell }> {
-    if (!this.memoryAdapter) {
-      throw new Error("MemoryCommandAdapter required for acceptCanonical");
-    }
+    options?: { editedText?: string; idempotencyKey?: string; createdBy?: string }
+  ): { proposal: MemoryMutationProposal; draft: CultivationAcceptDraft } {
     const session = this.requireSession(sessionId);
     const p = session.proposals.find((x) => x.id === proposalId);
     if (!p || p.kind === "note") {
@@ -185,34 +185,23 @@ export class CultivationService {
         ? { type: "text" as const, text }
         : p.draft.content;
 
-    const key = options?.idempotencyKey ?? randomUUID();
-    let cell: MemoryCell;
-
-    if (p.kind === "update_memory") {
-      if (!p.draft.memoryId) {
-        throw new Error("update_memory proposal missing draft.memoryId");
-      }
-      cell = await this.memoryAdapter.update({
-        memoryId: p.draft.memoryId,
-        content,
-        changeReason: p.draft.changeReason ?? "cultivation-accepted",
-        provenance: p.draft.provenance,
-        idempotencyKey: key,
-        createdBy: "cultivation",
-      });
-    } else {
-      cell = await this.memoryAdapter.create({
-        content,
-        provenance: p.draft.provenance,
-        idempotencyKey: key,
-        createdBy: "cultivation",
-      });
+    if (p.kind === "update_memory" && !p.draft.memoryId) {
+      throw new Error("update_memory proposal missing draft.memoryId");
     }
 
+    const key = options?.idempotencyKey ?? randomUUID();
+    const draft: CultivationAcceptDraft = {
+      kind: p.kind,
+      memoryId: p.draft.memoryId,
+      content,
+      provenance: p.draft.provenance,
+      changeReason: p.draft.changeReason ?? "cultivation-accepted",
+      idempotencyKey: key,
+      createdBy: options?.createdBy,
+    };
     p.status = options?.editedText !== undefined ? "edited" : "accepted";
     p.acceptedCommandIdempotencyKey = key;
-    p.acceptedMemoryId = cell.identity.id;
-    return { proposal: p, cell };
+    return { proposal: p, draft };
   }
 
   private requireSession(id: string): CultivationSession {

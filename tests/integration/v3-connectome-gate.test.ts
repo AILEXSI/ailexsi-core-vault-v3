@@ -8,6 +8,7 @@ import { createCoreRuntime, type CoreRuntime } from "@ailexsi/v2-command-adapter
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
 import type { Provenance } from "@ailexsi/contracts";
 import { AgencyDeniedError, HarborService, issueAuthorization, isConnectomeRelationContent } from "@ailexsi/v3-harbor";
+import { authorizedCreate } from "../helpers/authorized-write.js";
 
 const CORE_PIN = "652d01eb06dd0841c3b475023883675af6dcd698";
 const HUMAN = { id: "martin", kind: "human" as const, authorizeCanonical: true };
@@ -55,13 +56,18 @@ describe("V3 CONNECTOME LIVE GATE", () => {
       coreBaselineSha: CORE_PIN,
     });
     expect(runtime.store.constructor.name).toBe("PostgresEventStore");
-    const a = await runtime.adapter.create({
+    const a = await authorizedCreate(runtime.adapter, {
       content: { type: "text", text: "source note" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
-    const b = await runtime.adapter.create({
+    const b = await authorizedCreate(runtime.adapter, {
       content: { type: "text", text: "target note" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const witness = await authorizedCreate(runtime.adapter, {
+      content: { type: "text", text: "third-party evidence note" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
@@ -71,6 +77,7 @@ describe("V3 CONNECTOME LIVE GATE", () => {
       to: b.identity.id,
       type: "ABOUT",
       reason: "Source is about the target",
+      evidenceMemoryIds: [witness.identity.id],
     }, NOW);
     harbor.decideRelation(proposal.proposalId, "ACCEPTED", HUMAN, NOW);
     const seed = await runtime.queries.eventCount();
@@ -79,6 +86,7 @@ describe("V3 CONNECTOME LIVE GATE", () => {
         proposalId: proposal.proposalId,
         actor: AI,
         grant: issueAuthorization(HUMAN, {
+          grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
           capability: "CANONICAL_COMMIT",
           action: "relation.commit",
           target: proposal.proposalId,
@@ -94,6 +102,7 @@ describe("V3 CONNECTOME LIVE GATE", () => {
     expect(await runtime.queries.eventCount()).toBe(seed);
 
     const grant = issueAuthorization(HUMAN, {
+      grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "relation.commit",
       target: proposal.proposalId,

@@ -5,6 +5,7 @@ export type {
   MemoryMutationProposal,
   ChatProposal,
   CultivationProposal,
+  CultivationAcceptDraft,
   LlmProvider,
   CultivationSession,
 } from "./types.js";

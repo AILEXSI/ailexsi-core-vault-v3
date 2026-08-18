@@ -20,6 +20,7 @@ import {
   type DesktopHost,
 } from "@ailexsi/v2-command-adapter";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
+import { TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
 import type { Provenance } from "@ailexsi/contracts";
 import type { MemoryDetailView, MemoryListItem, ListMemoriesPage } from "@ailexsi/v2-read-models";
 
@@ -56,6 +57,7 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
       connectionString: live.connectionString,
       environment: "test",
       producer: "v2-desktop-e2e-phase3",
+      actor: TEST_SESSION_ACTOR,
     });
     runtimeRef = host.runtimeIdentity();
   }, 180_000);
@@ -81,7 +83,7 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
   });
 
   it("start is idempotent — same runtime identity", async () => {
-    await host.start({ connectionString: live!.connectionString });
+    await host.start({ connectionString: live!.connectionString, actor: TEST_SESSION_ACTOR });
     expect(host.generation).toBe(1);
     expect(host.runtimeIdentity()).toBe(runtimeRef);
   });
@@ -200,6 +202,7 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
         connectionString: isoUrl,
         environment: "test",
         producer: "v2-desktop-e2e-list",
+        actor: TEST_SESSION_ACTOR,
       });
       expect(isoHost.storeConstructorName()).toBe("PostgresEventStore");
 
@@ -270,6 +273,7 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
         connectionString: live!.connectionString,
         environment: "test",
         producer: "v2-desktop-e2e-phase3",
+      actor: TEST_SESSION_ACTOR,
       });
       runtimeRef = host.runtimeIdentity();
     }
@@ -287,6 +291,7 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
         connectionString: isoUrl,
         environment: "test",
         producer: "v2-desktop-e2e-replay",
+        actor: TEST_SESSION_ACTOR,
       });
 
       const a = (await invokeDesktopCommand("memory.create", {
@@ -355,6 +360,7 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
         connectionString: live!.connectionString,
         environment: "test",
         producer: "v2-desktop-e2e-phase3",
+      actor: TEST_SESSION_ACTOR,
       });
       runtimeRef = host.runtimeIdentity();
     }

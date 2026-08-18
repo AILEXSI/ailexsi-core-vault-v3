@@ -4,6 +4,7 @@ import { MemoryCommandAdapter } from "@ailexsi/v2-command-adapter";
 import { InMemoryEventStore } from "@ailexsi/v2-test-kit";
 import type { Provenance } from "@ailexsi/contracts";
 import { HarborService } from "@ailexsi/v3-harbor";
+import { authorizedCreate } from "../helpers/authorized-write.js";
 
 function provenance(): Provenance {
   return {
@@ -20,12 +21,12 @@ describe("Harbor rebuildability", () => {
   it("CANONICAL → REBUILD → DERIVED is deterministic", async () => {
     const store = new InMemoryEventStore();
     const adapter = new MemoryCommandAdapter({ store, environment: "test" });
-    const a = await adapter.create({
+    const a = await authorizedCreate(adapter, {
       content: { type: "text", text: "user prefers tea" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
-    const b = await adapter.create({
+    const b = await authorizedCreate(adapter, {
       content: { type: "text", text: "user prefers coffee" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
@@ -47,7 +48,7 @@ describe("Harbor rebuildability", () => {
   it("corrupted derived state rebuilds without destroying EventStore", async () => {
     const store = new InMemoryEventStore();
     const adapter = new MemoryCommandAdapter({ store, environment: "test" });
-    const a = await adapter.create({
+    const a = await authorizedCreate(adapter, {
       content: { type: "text", text: "user prefers tea" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),

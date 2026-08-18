@@ -11,6 +11,7 @@ import {
 } from "@ailexsi/v2-command-adapter";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
 import type { Provenance } from "@ailexsi/contracts";
+import { authorizedCreate, authorizedUpdate, authorizedArchive, authorizedRestore } from "../helpers/authorized-write.js";
 
 function provenance(): Provenance {
   return {
@@ -62,7 +63,7 @@ describe("LIVE Postgres + Core EventStore Memory path", () => {
 
   it("create Memory via Core PostgresEventStore", async () => {
     const key = randomUUID();
-    const cell = await runtime!.adapter.create({
+    const cell = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: `live-pg-${key.slice(0, 8)}` },
       provenance: provenance(),
       idempotencyKey: key,
@@ -77,25 +78,25 @@ describe("LIVE Postgres + Core EventStore Memory path", () => {
   });
 
   it("update / archive / restore through EventStore", async () => {
-    const created = await runtime!.adapter.create({
+    const created = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "lifecycle-live" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
-    const updated = await runtime!.adapter.update({
+    const updated = await authorizedUpdate(runtime!.adapter, {
       memoryId: created.identity.id,
       content: { type: "text", text: "lifecycle-live-v2" },
       idempotencyKey: randomUUID(),
       changeReason: "live-update",
     });
     expect(updated.currentVersion).toBe(2);
-    const archived = await runtime!.adapter.archive({
+    const archived = await authorizedArchive(runtime!.adapter, {
       memoryId: created.identity.id,
       idempotencyKey: randomUUID(),
       reason: "live-archive",
     });
     expect(archived.lifecycle.state).toBe("archived");
-    const restored = await runtime!.adapter.restore({
+    const restored = await authorizedRestore(runtime!.adapter, {
       memoryId: created.identity.id,
       idempotencyKey: randomUUID(),
       reason: "live-restore",
@@ -108,17 +109,17 @@ describe("LIVE Postgres + Core EventStore Memory path", () => {
   });
 
   it("AAS-54 CLEAR → REPLAY → IDENTICAL via ProjectionEngine + V2 read model", async () => {
-    const created = await runtime!.adapter.create({
+    const created = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "replay-live-v1" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
-    await runtime!.adapter.update({
+    await authorizedUpdate(runtime!.adapter, {
       memoryId: created.identity.id,
       content: { type: "text", text: "replay-live-v2" },
       idempotencyKey: randomUUID(),
     });
-    await runtime!.adapter.archive({
+    await authorizedArchive(runtime!.adapter, {
       memoryId: created.identity.id,
       idempotencyKey: randomUUID(),
     });
@@ -139,12 +140,12 @@ describe("LIVE Postgres + Core EventStore Memory path", () => {
 
   it("idempotent create does not duplicate EventStore rows", async () => {
     const key = randomUUID();
-    const a = await runtime!.adapter.create({
+    const a = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "idem-live" },
       provenance: provenance(),
       idempotencyKey: key,
     });
-    const b = await runtime!.adapter.create({
+    const b = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "idem-live" },
       provenance: provenance(),
       idempotencyKey: key,

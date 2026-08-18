@@ -75,12 +75,25 @@ console.log(
 
 let server;
 try {
+  if (!process.env.DESKTOP_HOST_TOKEN) {
+    process.env.DESKTOP_HOST_TOKEN = "local-desktop-channel";
+    console.log(
+      "[host] DESKTOP_HOST_TOKEN unset — Channel Token local-desktop-channel (127.0.0.1 only; not an actor)"
+    );
+  }
+
   server = await startDesktopBridgeServer({
     connectionString: live.connectionString,
     port,
     environment:
       process.env.AILEXSI_ENV === "production" ? "production" : "development",
     producer: "v2-desktop-host-server",
+    actor: {
+      id: process.env.DESKTOP_SESSION_ACTOR_ID || "desktop-user",
+      kind: "human",
+      authorizeCanonical: true,
+      authorizeExternal: true,
+    },
   });
 } catch (e) {
   const msg = e instanceof Error ? e.message : String(e);

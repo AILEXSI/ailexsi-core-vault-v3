@@ -19,8 +19,8 @@ import type { Provenance } from "@ailexsi/contracts";
 import {
   AgencyDeniedError,
   HarborService,
-  issueAuthorization,
 } from "@ailexsi/v3-harbor";
+import { authorizedCreate } from "../helpers/authorized-write.js";
 
 const CORE_PIN = "652d01eb06dd0841c3b475023883675af6dcd698";
 const VAULT = "061e444389090c54e431b0e8243e82764f2c198e";
@@ -101,14 +101,14 @@ describe("V3 FULL ACCEPTANCE / SYSTEM INTEGRITY GATE", () => {
       persistDir,
     });
 
-    const tea = await runtime.adapter.create({
+    const tea = await authorizedCreate(runtime.adapter, {
       content: { type: "text", text: "user prefers tea" },
       context: { project: "kitchen", tags: ["drink"] },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
       createdBy: HUMAN.id,
     });
-    const coffee = await runtime.adapter.create({
+    const coffee = await authorizedCreate(runtime.adapter, {
       content: { type: "text", text: "user prefers coffee" },
       context: { project: "kitchen", tags: ["drink"] },
       provenance: provenance(),
@@ -186,7 +186,8 @@ describe("V3 FULL ACCEPTANCE / SYSTEM INTEGRITY GATE", () => {
     const denyCommit = await denialOfAsync(() =>
       harbor.commitCanonical({
         actor: AI,
-        grant: issueAuthorization(HUMAN, {
+        grant: harbor.agency.issueAuthorization(HUMAN, {
+          grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
           capability: "CANONICAL_COMMIT",
           action: "memory.create",
           target: "blocked",
@@ -210,7 +211,8 @@ describe("V3 FULL ACCEPTANCE / SYSTEM INTEGRITY GATE", () => {
     expect(await runtime.queries.eventCount()).toBe(seedEvents);
     expect(harbor.currentFingerprint()).toBe(fingerprint);
 
-    const grant = issueAuthorization(HUMAN, {
+    const grant = harbor.agency.issueAuthorization(HUMAN, {
+      grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "memory.create",
       target: "authorized-integrity",

@@ -12,6 +12,7 @@ import {
 } from "@ailexsi/v2-command-adapter";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
 import type { Provenance } from "@ailexsi/contracts";
+import { authorizedCreate, authorizedUpdate, authorizedArchive, authorizedRestore } from "../helpers/authorized-write.js";
 
 function provenance(): Provenance {
   return {
@@ -60,7 +61,7 @@ describe("PHASE 2 — QUERY + READ-MODEL GATE (live Postgres)", () => {
   });
 
   it("GET existing memory via query service", async () => {
-    const cell = await runtime!.adapter.create({
+    const cell = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "query-get" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
@@ -81,7 +82,7 @@ describe("PHASE 2 — QUERY + READ-MODEL GATE (live Postgres)", () => {
     // isolated dataset for ordering: create fixed-order texts
     const ids: string[] = [];
     for (const text of ["ord-a", "ord-b", "ord-c"]) {
-      const c = await runtime!.adapter.create({
+      const c = await authorizedCreate(runtime!.adapter, {
         content: { type: "text", text },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
@@ -122,7 +123,7 @@ describe("PHASE 2 — QUERY + READ-MODEL GATE (live Postgres)", () => {
       expect(empty.nextCursor).toBeNull();
 
       for (let i = 0; i < 5; i++) {
-        await iso.adapter.create({
+        await authorizedCreate(iso.adapter, {
           content: { type: "text", text: `page-item-${i}` },
           provenance: provenance(),
           idempotencyKey: randomUUID(),
@@ -173,17 +174,17 @@ describe("PHASE 2 — QUERY + READ-MODEL GATE (live Postgres)", () => {
       producer: "v2-query-filter",
     });
     try {
-      const a = await iso.adapter.create({
+      const a = await authorizedCreate(iso.adapter, {
         content: { type: "text", text: "keep-active" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
       });
-      const b = await iso.adapter.create({
+      const b = await authorizedCreate(iso.adapter, {
         content: { type: "text", text: "to-archive" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
       });
-      await iso.adapter.archive({
+      await authorizedArchive(iso.adapter, {
         memoryId: b.identity.id,
         idempotencyKey: randomUUID(),
       });
@@ -200,21 +201,21 @@ describe("PHASE 2 — QUERY + READ-MODEL GATE (live Postgres)", () => {
   }, 120_000);
 
   it("history query preserves Core event order and types", async () => {
-    const c = await runtime!.adapter.create({
+    const c = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "hist-1" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     });
-    await runtime!.adapter.update({
+    await authorizedUpdate(runtime!.adapter, {
       memoryId: c.identity.id,
       content: { type: "text", text: "hist-2" },
       idempotencyKey: randomUUID(),
     });
-    await runtime!.adapter.archive({
+    await authorizedArchive(runtime!.adapter, {
       memoryId: c.identity.id,
       idempotencyKey: randomUUID(),
     });
-    await runtime!.adapter.restore({
+    await authorizedRestore(runtime!.adapter, {
       memoryId: c.identity.id,
       idempotencyKey: randomUUID(),
     });
@@ -244,26 +245,26 @@ describe("PHASE 2 — QUERY + READ-MODEL GATE (live Postgres)", () => {
       producer: "v2-query-replay",
     });
     try {
-      const a = await iso.adapter.create({
+      const a = await authorizedCreate(iso.adapter, {
         content: { type: "text", text: "qa-v1" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
       });
-      const b = await iso.adapter.create({
+      const b = await authorizedCreate(iso.adapter, {
         content: { type: "text", text: "qb-v1" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
       });
-      await iso.adapter.update({
+      await authorizedUpdate(iso.adapter, {
         memoryId: a.identity.id,
         content: { type: "text", text: "qa-v2" },
         idempotencyKey: randomUUID(),
       });
-      await iso.adapter.archive({
+      await authorizedArchive(iso.adapter, {
         memoryId: b.identity.id,
         idempotencyKey: randomUUID(),
       });
-      await iso.adapter.restore({
+      await authorizedRestore(iso.adapter, {
         memoryId: b.identity.id,
         idempotencyKey: randomUUID(),
       });
@@ -297,7 +298,7 @@ describe("PHASE 2 — QUERY + READ-MODEL GATE (live Postgres)", () => {
   }, 180_000);
 
   it("read operations do not append events", async () => {
-    const c = await runtime!.adapter.create({
+    const c = await authorizedCreate(runtime!.adapter, {
       content: { type: "text", text: "no-append" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),

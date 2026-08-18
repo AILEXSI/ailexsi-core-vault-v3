@@ -18,6 +18,7 @@ import {
   sealActor,
   type AuthorizationGrant,
 } from "@ailexsi/v3-harbor";
+import { authorizedCreate } from "../helpers/authorized-write.js";
 
 const root = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
 const HUMAN = { id: "martin", kind: "human" as const, authorizeCanonical: true, authorizeExternal: true };
@@ -68,7 +69,7 @@ describe("Explicit agency / permission boundary", () => {
   it("permitted DERIVED_WRITE allowed", async () => {
     const store = new InMemoryEventStore();
     const adapter = new MemoryCommandAdapter({ store, environment: "test" });
-    const cell = await adapter.create({
+    const cell = await authorizedCreate(adapter, {
       content: { type: "text", text: "user prefers tea" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
@@ -110,6 +111,7 @@ describe("Explicit agency / permission boundary", () => {
           grantId: "forged",
           capability: "CANONICAL_COMMIT",
           grantedBy: { id: "forged", kind: "human" },
+          grantedTo: { id: AI.id, kind: "ai" },
           action: "memory.create",
           target: "x",
           issuedAt: NOW,
@@ -133,6 +135,7 @@ describe("Explicit agency / permission boundary", () => {
           grantId: "forged-ext",
           capability: "EXTERNAL_ACTION",
           grantedBy: { id: "forged", kind: "human" },
+          grantedTo: { id: AI.id, kind: "ai" },
           action: "http.post",
           target: "https://example.invalid",
           issuedAt: NOW,
@@ -157,6 +160,7 @@ describe("Explicit agency / permission boundary", () => {
     const adapter = new MemoryCommandAdapter({ store, environment: "test" });
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
     const grant = issueAuthorization(HUMAN, {
+      grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "memory.create",
       target: "authorized-memory",
@@ -205,6 +209,7 @@ describe("Explicit agency / permission boundary", () => {
 
     const aiGrant = denialOf(() =>
       issueAuthorization(AI, {
+        grantedTo: { id: AI.id, kind: AI.kind },
         capability: "CANONICAL_COMMIT",
         action: "memory.create",
         target: "x",
@@ -242,7 +247,7 @@ describe("Explicit agency / permission boundary", () => {
   it("denied actions do not modify Core/EventStore/Derived state", async () => {
     const store = new InMemoryEventStore();
     const adapter = new MemoryCommandAdapter({ store, environment: "test" });
-    const cell = await adapter.create({
+    const cell = await authorizedCreate(adapter, {
       content: { type: "text", text: "user prefers tea" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
@@ -260,6 +265,7 @@ describe("Explicit agency / permission boundary", () => {
       harbor.commitCanonical({
         actor: AI,
         grant: issueAuthorization(HUMAN, {
+          grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
           capability: "CANONICAL_COMMIT",
           action: "memory.create",
           target: "blocked",
@@ -295,6 +301,7 @@ describe("Explicit agency / permission boundary", () => {
     const adapter = new MemoryCommandAdapter({ store, environment: "test" });
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
     const grant = issueAuthorization(HUMAN, {
+      grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "memory.create",
       target: "prov-target",
@@ -330,6 +337,7 @@ describe("Explicit agency / permission boundary", () => {
     expect(record.provenance.class).toBe("V3-DERIVED");
 
     const extGrant = issueAuthorization(HUMAN, {
+      grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "EXTERNAL_ACTION",
       action: "notify",
       target: "ops",
@@ -376,6 +384,7 @@ describe("Explicit agency / permission boundary", () => {
     expect(capabilitiesFor(AI)).toEqual(["READ_ONLY", "DERIVED_WRITE", "CANONICAL_PROPOSAL"]);
 
     const grant = issueAuthorization(HUMAN, {
+      grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "memory.create",
       target: "sealed",
@@ -388,7 +397,9 @@ describe("Explicit agency / permission boundary", () => {
       (grant as { action: string }).action = "memory.delete";
     }).toThrow();
 
-    const forged = structuredClone(grant) as AuthorizationGrant;
+    const sameRecord = structuredClone(grant) as AuthorizationGrant;
+    expect(isIssuedGrant(sameRecord)).toBe(true);
+    const forged = { ...grant, action: "memory.delete" } as AuthorizationGrant;
     expect(isIssuedGrant(forged)).toBe(false);
     await expect(
       harbor.commitCanonical({

@@ -153,5 +153,6 @@ export const DEFAULT_SUITE_ORDER = [
   "test:retrieval",
   "test:continuity",
   "test:cultivation",
+  "test:integrity",
   "acceptance",
 ];

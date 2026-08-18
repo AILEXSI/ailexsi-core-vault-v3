@@ -317,6 +317,28 @@ gate(
   })()
 );
 gate(
+  "V3 FULL ACCEPTANCE GATE PRESENT",
+  (() => {
+    const gateFile = path.join(root, "tests/integration/v3-full-acceptance-gate.test.ts");
+    const pkg = path.join(root, "package.json");
+    if (!existsSync(gateFile) || !existsSync(pkg)) return false;
+    const src = readFileSync(gateFile, "utf8");
+    const pkgSrc = readFileSync(pkg, "utf8");
+    return (
+      src.includes("V3 FULL ACCEPTANCE / SYSTEM INTEGRITY GATE") &&
+      src.includes("Core → Query → Context → Reflection → Cultivation → Agency") &&
+      src.includes("startLivePostgres") &&
+      src.includes("createCoreRuntime") &&
+      src.includes("HarborService") &&
+      src.includes("commitCanonical") &&
+      src.includes("PostgresEventStore") &&
+      !src.includes("InMemoryEventStore") &&
+      pkgSrc.includes("test:integrity") &&
+      pkgSrc.includes("v3-full-acceptance-gate.test.ts")
+    );
+  })()
+);
+gate(
   "V2 STRUCTURE PRESENT",
   existsSync(path.join(root, "packages/command-adapter/src/index.ts")) &&
     existsSync(path.join(root, "packages/command-adapter/src/core-runtime.ts")) &&
@@ -459,7 +481,7 @@ let unitOk = false;
 let unitDetail = "";
 try {
   const out = runVitest(
-    "--exclude tests/integration/live-postgres-memory.test.ts --exclude tests/integration/desktop-command-path.test.ts --exclude tests/integration/desktop-bridge-http.test.ts --exclude tests/integration/memory-foundation-gate.test.ts --exclude tests/integration/memory-query-read-model-gate.test.ts --exclude tests/integration/desktop-memory-e2e-gate.test.ts --exclude tests/integration/memory-retrieval-context-gate.test.ts --exclude tests/integration/continuity-foundation-gate.test.ts --exclude tests/integration/cultivation-foundation-gate.test.ts --exclude tests/integration/desktop-co-creation-surface-gate.test.ts"
+    "--exclude tests/integration/live-postgres-memory.test.ts --exclude tests/integration/desktop-command-path.test.ts --exclude tests/integration/desktop-bridge-http.test.ts --exclude tests/integration/memory-foundation-gate.test.ts --exclude tests/integration/memory-query-read-model-gate.test.ts --exclude tests/integration/desktop-memory-e2e-gate.test.ts --exclude tests/integration/memory-retrieval-context-gate.test.ts --exclude tests/integration/continuity-foundation-gate.test.ts --exclude tests/integration/cultivation-foundation-gate.test.ts --exclude tests/integration/desktop-co-creation-surface-gate.test.ts --exclude tests/integration/v3-full-acceptance-gate.test.ts"
   );
   unitOk = true;
   unitDetail = out.split("\n").filter((l) => l.includes("Tests")).pop() ?? "ok";
@@ -799,6 +821,31 @@ gate(
   dcsDetail.trim().slice(0, 240)
 );
 
+let integrityOk = false;
+let integrityDetail = "";
+try {
+  const out = runVitest("tests/integration/v3-full-acceptance-gate.test.ts");
+  integrityOk = true;
+  integrityDetail =
+    out.split("\n").filter((l) => l.includes("Tests")).pop() ?? "ok";
+  console.log(out);
+} catch (e) {
+  integrityOk = false;
+  integrityDetail = (
+    e.stdout?.toString?.() ||
+    e.stderr?.toString?.() ||
+    e.message ||
+    ""
+  ).slice(0, 1200);
+  writeGateFailureLog("V3 FULL ACCEPTANCE GATE", e);
+  console.error(e.stdout?.toString?.() || e.stderr?.toString?.() || e.message);
+}
+gate(
+  "V3 FULL ACCEPTANCE GATE",
+  integrityOk,
+  integrityDetail.trim().slice(0, 240)
+);
+
 const failed = gates.filter((g) => !g.ok);
 const softLive = new Set([
   "LIVE POSTGRES + CORE EVENTSTORE",
@@ -822,6 +869,7 @@ const softLive = new Set([
   "CONTINUITY FOUNDATION GATE",
   "CULTIVATION FOUNDATION GATE",
   "DESKTOP CO-CREATION SURFACE GATE",
+  "V3 FULL ACCEPTANCE GATE",
 ]);
 const hardFailed = failed.filter((g) => !softLive.has(g.name));
 
@@ -830,7 +878,7 @@ let exitCode;
 if (hardFailed.length > 0) {
   status = "BLOCKED";
   exitCode = 1;
-} else if (!liveTestOk || !desktopOk || !bridgeOk || !foundationOk || !queryOk || !e2eOk || !retrievalOk || !continuityOk || !cultivationOk || !dcsOk) {
+} else if (!liveTestOk || !desktopOk || !bridgeOk || !foundationOk || !queryOk || !e2eOk || !retrievalOk || !continuityOk || !cultivationOk || !dcsOk || !integrityOk) {
   status = "VERIFICATION PENDING";
   exitCode = 2;
 } else if (failed.length === 0) {
@@ -854,6 +902,7 @@ console.log(`RETRIEVAL GATE: ${retrievalOk ? "PASS" : "FAIL"}`);
 console.log(`CONTINUITY GATE: ${continuityOk ? "PASS" : "FAIL"}`);
 console.log(`CULTIVATION GATE: ${cultivationOk ? "PASS" : "FAIL"}`);
 console.log(`DESKTOP CO-CREATION GATE: ${dcsOk ? "PASS" : "FAIL"}`);
+console.log(`FULL ACCEPTANCE GATE: ${integrityOk ? "PASS" : "FAIL"}`);
 console.log(`READ MODEL GATE: ${queryOk ? "PASS" : "FAIL"}`);
 console.log(`REPLAY GATE: ${queryOk ? "PASS" : "FAIL"}`);
 console.log(`PHASE 08 CODE PRESENT: NO`);

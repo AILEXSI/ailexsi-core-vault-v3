@@ -121,7 +121,7 @@ not sufficient for GREEN.
 | Desktop Tauri shell | PARTIAL (foundation UI) |
 | Connectome | **NOT implemented** |
 | Integration | **NOT implemented** |
-| Full Acceptance | **NOT implemented** |
+| Full Acceptance / system integrity gate | GREEN / implemented (`test:integrity`, live Postgres) |
 | Hardening | **NOT implemented** |
 | Stress | **NOT implemented** |
 | Optimization | **NOT implemented** |

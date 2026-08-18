@@ -12,7 +12,7 @@
     "db:probe": "node scripts/probe-postgres.mjs",
     "build": "tsc -b",
     "typecheck": "tsc -b --pretty false",
-    "test": "vitest run --config vitest.config.ts --exclude tests/integration/live-postgres-memory.test.ts --exclude tests/integration/desktop-command-path.test.ts --exclude tests/integration/desktop-bridge-http.test.ts --exclude tests/integration/memory-foundation-gate.test.ts --exclude tests/integration/memory-query-read-model-gate.test.ts --exclude tests/integration/desktop-memory-e2e-gate.test.ts --exclude tests/integration/memory-retrieval-context-gate.test.ts --exclude tests/integration/continuity-foundation-gate.test.ts --exclude tests/integration/cultivation-foundation-gate.test.ts --exclude tests/integration/desktop-co-creation-surface-gate.test.ts",
+    "test": "vitest run --config vitest.config.ts --exclude tests/integration/live-postgres-memory.test.ts --exclude tests/integration/desktop-command-path.test.ts --exclude tests/integration/desktop-bridge-http.test.ts --exclude tests/integration/memory-foundation-gate.test.ts --exclude tests/integration/memory-query-read-model-gate.test.ts --exclude tests/integration/desktop-memory-e2e-gate.test.ts --exclude tests/integration/memory-retrieval-context-gate.test.ts --exclude tests/integration/continuity-foundation-gate.test.ts --exclude tests/integration/cultivation-foundation-gate.test.ts --exclude tests/integration/desktop-co-creation-surface-gate.test.ts --exclude tests/integration/v3-full-acceptance-gate.test.ts",
     "test:unit": "vitest run --config vitest.config.ts tests/unit",
     "test:integration": "vitest run --config vitest.config.ts tests/integration --exclude tests/integration/live-postgres-memory.test.ts --exclude tests/integration/desktop-command-path.test.ts --exclude tests/integration/desktop-bridge-http.test.ts --exclude tests/integration/memory-foundation-gate.test.ts --exclude tests/integration/memory-query-read-model-gate.test.ts",
     "test:live": "vitest run --config vitest.config.ts tests/integration/live-postgres-memory.test.ts tests/integration/memory-foundation-gate.test.ts",
@@ -35,6 +35,7 @@
     "test:cultivation": "vitest run --config vitest.config.ts tests/integration/cultivation-foundation-gate.test.ts tests/unit/cultivation-foundation.test.ts tests/integration/ai-writeback-safety.test.ts",
     "test:dcs": "vitest run --config vitest.config.ts tests/integration/desktop-co-creation-surface-gate.test.ts tests/unit/desktop-co-creation-client.test.ts",
     "test:harbor": "vitest run --config vitest.config.ts tests/unit/harbor-harbor.test.ts",
+    "test:integrity": "vitest run --config vitest.config.ts tests/integration/v3-full-acceptance-gate.test.ts",
     "verify:live": "node scripts/live-verification.mjs"
   },
   "workspaces": [

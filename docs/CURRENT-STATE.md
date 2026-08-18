@@ -58,6 +58,7 @@ No new V3 GREEN freeze tag is minted until a dedicated freeze is authorized. The
 - Durable derived index (`harbor-derived-index-v1`)
 - Deterministic derived query service (READ-ONLY)
 - Agentic failure tests
+- Full-system acceptance / integrity gate: live PostgresEventStore walk Core → Query → Context → Reflection → Cultivation → Agency; unauthorized canonical writes blocked; authorized writes keep provenance; denied actions do not mutate EventStore
 - Desktop nav labels exist (Home/Harbor, Memory, Context, Reflection, Cultivation, Connectome, Continuity, Evidence, Settings). Nav labels are not product completion.
 
 ## NOT IMPLEMENTED
@@ -68,7 +69,7 @@ These are **not** implemented. Do not treat nav labels, inherited V2 presentatio
 |------|--------|
 | Connectome | **NOT implemented** |
 | Integration | **NOT implemented** |
-| Full Acceptance | **NOT implemented** |
+| Full Acceptance | **GREEN / implemented** — `tests/integration/v3-full-acceptance-gate.test.ts` (`npm run test:integrity`) |
 | Hardening | **NOT implemented** |
 | Stress | **NOT implemented** |
 | Optimization | **NOT implemented** |
@@ -99,7 +100,7 @@ These are **not** implemented. Do not treat nav labels, inherited V2 presentatio
 
 ## NEXT BUILD SLICE
 
-Not started. Do not start Connectome, Integration, Full Acceptance, Hardening, Stress, Optimization, or Release Candidate from this documentation update.
+Not started. Do not start Connectome, Integration, Hardening, Stress, Optimization, or Release Candidate from this slice.
 
 ## ARCHITECTURAL INVARIANTS
 

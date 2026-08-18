@@ -15,6 +15,7 @@
     "tests/unit/harbor-cultivation-proposals.test.ts",
     "tests/unit/harbor-agency-boundary.test.ts",
     "tests/unit/version-consistency.test.ts",
-    "tests/integration/ai-writeback-safety.test.ts"
+    "tests/integration/ai-writeback-safety.test.ts",
+    "tests/integration/v3-full-acceptance-gate.test.ts"
   ]
 }

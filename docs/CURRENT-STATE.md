@@ -6,7 +6,7 @@ This repository is **AILEXSI Core Vault V3**.
 
 ## CURRENT IMPLEMENTATION HEAD
 
-`7bf0c115b1fce501f24b0b8b2266a081655c0819`
+`162afa0d4f6ea003c8beab565bdfbfb2160cb136`
 
 Agency implementation: `d7aa20e201908dabb561c327dc4de200857d0765` (`feat: enforce explicit agency boundaries`).  
 `7bf0c11` records acceptance + `verify:live` evidence for that agency tree.
@@ -26,7 +26,7 @@ Implemented capabilities run **through EXPLICIT AGENCY / PERMISSION BOUNDARY**. 
 | Observed reflection | `5d5b112be9bf16d5657d72c522e98931d35fdc6a` | deterministic OBSERVED reflections |
 | Cultivation proposals | `6804c377acc15fdd52ae47f4b13704c0891ea77c` | deterministic cultivation proposals |
 | Agency implementation | `d7aa20e201908dabb561c327dc4de200857d0765` | explicit agency / permission boundary — GREEN |
-| Implementation HEAD | `7bf0c115b1fce501f24b0b8b2266a081655c0819` | agency evidence on `d7aa20e` |
+| Implementation HEAD | `162afa0d4f6ea003c8beab565bdfbfb2160cb136` | semantic cleanup on closed write-graph |
 
 ## LATEST GREEN TAG
 
@@ -42,7 +42,7 @@ No new V3 GREEN freeze tag is minted until a dedicated freeze is authorized. The
 - Core Memory command path (V2 inherited): create/get/update/archive/restore/history
 - Retrieval + V2 context bundle
 - Cultivation accept/reject/defer (human; EventStore only on accept)
-- Harbor epistemic overlays (FACT default for Core cells; confirm → USER_ASSERTED, never silent FACT)
+- Harbor epistemic overlays (UNCERTAIN default for recorded Core cells — recording ≠ truth; confirm → USER_ASSERTED, never silent FACT)
 - **Agency = GREEN / implemented.** Enforceable permission boundary (`AgencyBoundary`): frozen authority, issued grants, structured denials, audit of authorized canonical/external actions. AI cannot self-grant `CANONICAL_COMMIT`.
 - Proposal persist: `commitProposal` requires ACCEPTED/EDITED **and** a separate human grant (`proposal.commit`). Accept is not a Core write.
 - Contradiction detect/resolve (human resolution only)
@@ -122,4 +122,4 @@ Not started. Do not start Integration, Hardening, Stress, Optimization, or Relea
 | V2 source | `d684aa4a3c292c1d1f1587a68371589437b68055` |
 | V3 bootstrap tag | `v3.0.0-v2-baseline` @ `0eba4dbe36cfab839da8bbcd1ddf2df10a5447d1` |
 | Agency implementation | `d7aa20e201908dabb561c327dc4de200857d0765` |
-| Implementation HEAD | `7bf0c115b1fce501f24b0b8b2266a081655c0819` |
+| Implementation HEAD | `162afa0d4f6ea003c8beab565bdfbfb2160cb136` |

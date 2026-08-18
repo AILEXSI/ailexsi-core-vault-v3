@@ -49,7 +49,7 @@ export function HarborPanel({ focus = "home" }: { focus?: Focus }) {
       <h2>{title}</h2>
       <p>
         <span className="badge v2">V3-DERIVED</span>
-        <span className="badge core">Core = canonical</span>
+        <span className="badge core">Core = recorded Memory</span>
       </p>
       <p className="muted">{health}</p>
       {focus === "home" && (

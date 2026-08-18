@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import {
   hostCommand,
   retrieveMemories,
@@ -32,5 +34,28 @@ describe("Desktop co-creation client surface", () => {
       "cultivation.proposal.accept",
     ];
     expect(names.length).toBe(5);
+  });
+
+  it("Memory UI does not present recorded Core Memory as CANONICAL", () => {
+    const root = path.join(process.cwd());
+    const memory = readFileSync(
+      path.join(root, "apps/desktop/src/components/MemoryPanel.tsx"),
+      "utf8"
+    );
+    const harbor = readFileSync(
+      path.join(root, "apps/desktop/src/components/HarborPanel.tsx"),
+      "utf8"
+    );
+    const cult = readFileSync(
+      path.join(root, "apps/desktop/src/components/CultivationPanel.tsx"),
+      "utf8"
+    );
+    expect(memory).toMatch(/badge core">RECORDED</);
+    expect(memory).not.toMatch(/badge core">CANONICAL</);
+    expect(harbor).toMatch(/Core = recorded Memory/);
+    expect(harbor).not.toMatch(/Core = canonical/);
+    expect(cult).toMatch(/Recorded Memory/);
+    expect(cult).not.toMatch(/Canonical Memory \(Core\)/);
+    expect(cult).toMatch(/Accept and persist/);
   });
 });

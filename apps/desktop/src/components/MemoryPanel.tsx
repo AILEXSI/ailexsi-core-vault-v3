@@ -307,7 +307,7 @@ export function MemoryPanel() {
           ) : (
             <div className="detail">
               <p>
-                <span className="badge core">CANONICAL</span>
+                <span className="badge core">RECORDED</span>
                 <code>{selected.id}</code>
               </p>
               <p className="muted">

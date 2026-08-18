@@ -250,7 +250,7 @@ export function CultivationPanel() {
               onClick={() => void onAccept()}
               disabled={busy || proposal.status !== "pending"}
             >
-              Accept
+              Accept and persist
             </button>
           </div>
         </>
@@ -258,7 +258,7 @@ export function CultivationPanel() {
 
       {result && (
         <>
-          <h3>4. Canonical Memory (Core)</h3>
+          <h3>4. Recorded Memory</h3>
           <p>
             <code>{result.id}</code> · v{result.currentVersion.value} ·{" "}
             {result.lifecycle.value.state}

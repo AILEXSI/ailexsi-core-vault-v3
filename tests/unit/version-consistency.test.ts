@@ -82,6 +82,9 @@ describe("V3 product version consistency", () => {
     expect((baselines.core as { sha: string }).sha).toBe(pin);
     const state = readFileSync(path.join(root, "docs/CURRENT-STATE.md"), "utf8");
     expect(state).toContain(pin);
+    expect(state).toMatch(/UNCERTAIN default for recorded Core cells/);
+    expect(state).toMatch(/recording ≠ truth|recording != truth/i);
+    expect(state).not.toMatch(/FACT default for Core cells/);
     const readme = readFileSync(path.join(root, "docs/BASELINES.md"), "utf8");
     expect(readme).toContain(pin);
   });

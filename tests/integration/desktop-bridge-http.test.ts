@@ -12,7 +12,7 @@ import {
   type DesktopBridgeServer,
 } from "@ailexsi/v2-command-adapter";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
-import { TEST_CHANNEL_TOKEN, TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
+import { TEST_CHANNEL_TOKEN, TEST_SESSION_ACTOR, withHostGrant } from "../helpers/authorized-write.js";
 import type { Provenance } from "@ailexsi/contracts";
 
 function provenance(): Provenance {
@@ -100,12 +100,12 @@ describe("Desktop HTTP bridge → long-lived DesktopHost → PostgresEventStore"
 
   it("CREATE + LIST + GET via HTTP bridge", async () => {
     const key = randomUUID();
-    const created = await post(base, "memory.create", {
+    const created = await post(base, "memory.create", withHostGrant(getDesktopHost(), "memory.create", {
       content: { type: "text", text: `bridge-ui-${key.slice(0, 8)}` },
       provenance: provenance(),
       idempotencyKey: key,
       createdBy: "bridge-test",
-    });
+    }));
     expect(created.status).toBe(200);
     expect(created.json.ok).toBe(true);
     const view = created.json.result;
@@ -122,34 +122,34 @@ describe("Desktop HTTP bridge → long-lived DesktopHost → PostgresEventStore"
   });
 
   it("UPDATE + ARCHIVE + RESTORE + HISTORY via HTTP", async () => {
-    const created = await post(base, "memory.create", {
+    const created = await post(base, "memory.create", withHostGrant(getDesktopHost(), "memory.create", {
       content: { type: "text", text: "lifecycle-bridge-v1" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
       context: { tags: ["project"], project: "ailexsi-core-vault-v2" },
-    });
+    }));
     const id = created.json.result.id as string;
 
-    const updated = await post(base, "memory.update", {
+    const updated = await post(base, "memory.update", withHostGrant(getDesktopHost(), "memory.update", {
       memoryId: id,
       content: { type: "text", text: "lifecycle-bridge-v2" },
       changeReason: "bridge-update",
       idempotencyKey: randomUUID(),
-    });
+    }));
     expect(updated.json.result.currentVersion.value).toBe(2);
 
-    const archived = await post(base, "memory.archive", {
+    const archived = await post(base, "memory.archive", withHostGrant(getDesktopHost(), "memory.archive", {
       memoryId: id,
       reason: "bridge-archive",
       idempotencyKey: randomUUID(),
-    });
+    }));
     expect(archived.json.result.lifecycle.value.state).toBe("archived");
 
-    const restored = await post(base, "memory.restore", {
+    const restored = await post(base, "memory.restore", withHostGrant(getDesktopHost(), "memory.restore", {
       memoryId: id,
       reason: "bridge-restore",
       idempotencyKey: randomUUID(),
-    });
+    }));
     expect(restored.json.result.lifecycle.value.state).toBe("active");
 
     const hist = await post(base, "memory.history", { memoryId: id });
@@ -159,7 +159,7 @@ describe("Desktop HTTP bridge → long-lived DesktopHost → PostgresEventStore"
   });
 
   it("acceptance evidence memory with tags evidence+acceptance", async () => {
-    const created = await post(base, "memory.create", {
+    const created = await post(base, "memory.create", withHostGrant(getDesktopHost(), "memory.create", {
       content: {
         type: "text",
         text: "AILEXSI Core Vault V2 — Acceptance Evidence\nHEAD: test\nPhase 08: ABSENT",
@@ -171,7 +171,7 @@ describe("Desktop HTTP bridge → long-lived DesktopHost → PostgresEventStore"
         project: "ailexsi-core-vault-v2",
       },
       createdBy: "v2-acceptance-evidence",
-    });
+    }));
     expect(created.status).toBe(200);
     const view = created.json.result;
     expect(view.context.value.tags).toEqual(
@@ -189,11 +189,11 @@ describe("Desktop HTTP bridge → long-lived DesktopHost → PostgresEventStore"
 
   it("long-lived host: generation stays 1 across HTTP commands", async () => {
     expect(getDesktopHost().generation).toBe(1);
-    await post(base, "memory.create", {
+    await post(base, "memory.create", withHostGrant(getDesktopHost(), "memory.create", {
       content: { type: "text", text: "bridge-long-lived" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
-    });
+    }));
     expect(getDesktopHost().generation).toBe(1);
     expect(getDesktopHost().commandsServed).toBeGreaterThan(1);
   });

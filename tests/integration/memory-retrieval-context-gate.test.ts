@@ -16,7 +16,7 @@ import {
 } from "@ailexsi/v2-command-adapter";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
 import type { Provenance } from "@ailexsi/contracts";
-import { authorizedCreate, authorizedArchive, TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
+import { authorizedCreate, authorizedArchive, invokeAuthorized, TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
 
 function provenance(): Provenance {
   return {
@@ -331,7 +331,7 @@ describe("PHASE 4 — MEMORY RETRIEVAL + CONTEXT GATE", () => {
       const gen = host.generation;
       const ref = host.runtimeIdentity();
 
-      await invokeDesktopCommand("memory.create", {
+      await invokeAuthorized(host, "memory.create", {
         content: { type: "text", text: "desktop-retrieve" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),

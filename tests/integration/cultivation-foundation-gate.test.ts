@@ -13,7 +13,7 @@ import {
 } from "@ailexsi/v2-command-adapter";
 import { MockLlmProvider } from "@ailexsi/v2-cultivation";
 import { startLivePostgres } from "@ailexsi/v2-test-kit";
-import { TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
+import { invokeAuthorized, TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
 import type { Provenance } from "@ailexsi/contracts";
 
 const CORE = "652d01eb06dd0841c3b475023883675af6dcd698";
@@ -47,7 +47,7 @@ describe("CULTIVATION FOUNDATION GATE", () => {
       const gen = host.generation;
 
       // Seed Core-backed context memory
-      const seed = (await invokeDesktopCommand("memory.create", {
+      const seed = (await invokeAuthorized(host, "memory.create", {
         content: { type: "text", text: "context-seed" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
@@ -97,7 +97,8 @@ describe("CULTIVATION FOUNDATION GATE", () => {
         text: "Create",
         memoryIds: [seed.id],
       })) as { proposal: { id: string } };
-      const accepted = (await invokeDesktopCommand(
+      const accepted = (await invokeAuthorized(
+        host,
         "cultivation.proposal.accept",
         {
           sessionId: session.id,
@@ -126,7 +127,7 @@ describe("CULTIVATION FOUNDATION GATE", () => {
 
       // Double accept → no extra write
       await expect(
-        invokeDesktopCommand("cultivation.proposal.accept", {
+        invokeAuthorized(host, "cultivation.proposal.accept", {
           sessionId: session.id,
           proposalId: chat3.proposal.id,
           idempotencyKey: randomUUID(),
@@ -143,7 +144,8 @@ describe("CULTIVATION FOUNDATION GATE", () => {
         targetMemoryId: accepted.cell.identity.id,
       })) as { proposal: { id: string; kind: string } };
       expect(chatU.proposal.kind).toBe("update_memory");
-      const updated = (await invokeDesktopCommand(
+      const updated = (await invokeAuthorized(
+        host,
         "cultivation.proposal.accept",
         {
           sessionId: session.id,

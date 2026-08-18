@@ -3,7 +3,7 @@
  * Fail closed. Do not mint GREEN.
  */
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -24,9 +24,15 @@ import type { Provenance } from "@ailexsi/contracts";
 import {
   AgencyDeniedError,
   HarborService,
+  isConsumedGrant,
   isIssuedGrant,
 } from "@ailexsi/v3-harbor";
-import { authorizedCreate } from "../helpers/authorized-write.js";
+import {
+  authorizedCreate,
+  TEST_HUMAN_A,
+  TEST_HUMAN_B,
+} from "../helpers/authorized-write.js";
+import { bindAgencySessionActor } from "../../packages/harbor/src/session-bind.js";
 
 const CORE_PIN = "652d01eb06dd0841c3b475023883675af6dcd698";
 const MARTIN = { id: "martin", kind: "human" as const, authorizeCanonical: true };
@@ -683,5 +689,287 @@ describe("Harbor attack repros fail closed", () => {
         idempotencyKey: randomUUID(),
       })
     ).rejects.toMatchObject({ denial: { code: "HUMAN_AUTHORIZATION_REQUIRED" } });
+  });
+});
+
+describe("AUTO-GRANT removed — Session Actor is not AuthorizationGrant", () => {
+  it("commitThroughAgency does not issueAuthorization", () => {
+    const src = readFileSync(
+      path.join(process.cwd(), "packages/command-adapter/src/desktop-host.ts"),
+      "utf8"
+    );
+    const start = src.indexOf("private async commitThroughAgency");
+    const end = src.indexOf("private async loadCells");
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    expect(src.slice(start, end)).not.toMatch(/issueAuthorization/);
+  });
+
+  it("A: human session without grant is DENIED; EventStore unchanged", async () => {
+    const host = new DesktopHost();
+    host.attachActor(TEST_HUMAN_A);
+    expect(host.getSessionActor()?.id).toBe("test-human-a");
+    const err = await denialOfAsync(() =>
+      host.memoryCreate({
+        content: { type: "text", text: "no-grant" },
+        provenance: provenance(),
+        idempotencyKey: "X",
+      })
+    );
+    expect(err.denial.code).toBe("GRANT_INVALID");
+    expect(err.denial.stateModified).toBe(false);
+    expect(err.message).toMatch(/already-issued AuthorizationGrant/i);
+  });
+
+  it("B: explicit grant success — one Memory, createdBy=test-human-a, record, consumed", async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "auto-grant-b-"));
+    try {
+      const store = new InMemoryEventStore();
+      const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+      const harbor = HarborService.open({
+        corePin: CORE_PIN,
+        vaultReferenceSha: "v",
+        persistDir: dir,
+      });
+      bindAgencySessionActor(harbor.agency, TEST_HUMAN_A);
+      expect(harbor.agency.issuedGrantCount()).toBe(0);
+      const target = "X";
+      const grant = harbor.agency.issueAuthorization(TEST_HUMAN_A, {
+        grantedTo: { id: TEST_HUMAN_A.id, kind: TEST_HUMAN_A.kind },
+        capability: "CANONICAL_COMMIT",
+        action: "memory.create",
+        target,
+        now: NOW,
+      });
+      const { result, record } = await harbor.commitCanonical({
+        actor: TEST_HUMAN_A,
+        grant,
+        action: "memory.create",
+        target,
+        now: NOW,
+        execute: async (ctx) => {
+          const cell = await adapter.create({
+            content: { type: "text", text: "explicit-grant" },
+            provenance: provenance(),
+            idempotencyKey: target,
+            createdBy: TEST_HUMAN_A.id,
+          }, ctx);
+          return { result: cell, eventIds: store.all().map((e) => e.event.eventId) };
+        },
+      });
+      expect(store.count()).toBe(1);
+      expect(result.content).toMatchObject({ type: "text", text: "explicit-grant" });
+      expect((store.all()[0]!.event.payload as { createdBy?: string }).createdBy).toBe(
+        "test-human-a"
+      );
+      expect(record.actor).toEqual({ id: "test-human-a", kind: "human" });
+      expect(harbor.agency.inspectCanonicalActions()).toHaveLength(1);
+      expect(harbor.agency.inspectCanonicalActions()[0]!.authorization.grantId).toBe(
+        grant.grantId
+      );
+      expect(isConsumedGrant(grant, harbor.agency.registry)).toBe(true);
+      expect(isIssuedGrant(grant, harbor.agency.registry)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("C: grant replay is DENIED; EventStore unchanged", async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "auto-grant-c-"));
+    try {
+      const store = new InMemoryEventStore();
+      const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+      const harbor = HarborService.open({
+        corePin: CORE_PIN,
+        vaultReferenceSha: "v",
+        persistDir: dir,
+      });
+      bindAgencySessionActor(harbor.agency, TEST_HUMAN_A);
+      const target = "X";
+      const grant = harbor.agency.issueAuthorization(TEST_HUMAN_A, {
+        grantedTo: { id: TEST_HUMAN_A.id, kind: TEST_HUMAN_A.kind },
+        capability: "CANONICAL_COMMIT",
+        action: "memory.create",
+        target,
+        now: NOW,
+      });
+      await harbor.commitCanonical({
+        actor: TEST_HUMAN_A,
+        grant,
+        action: "memory.create",
+        target,
+        execute: async (ctx) => {
+          const cell = await adapter.create({
+            content: { type: "text", text: "once" },
+            provenance: provenance(),
+            idempotencyKey: target,
+            createdBy: TEST_HUMAN_A.id,
+          }, ctx);
+          return { result: cell, eventIds: store.all().map((e) => e.event.eventId) };
+        },
+      });
+      const before = store.count();
+      expect(before).toBe(1);
+      const err = await denialOfAsync(() =>
+        harbor.commitCanonical({
+          actor: TEST_HUMAN_A,
+          grant,
+          action: "memory.create",
+          target,
+          execute: async (ctx) => {
+            await adapter.create({
+              content: { type: "text", text: "replay" },
+              provenance: provenance(),
+              idempotencyKey: randomUUID(),
+              createdBy: TEST_HUMAN_A.id,
+            }, ctx);
+            return { result: null, eventIds: [] };
+          },
+        })
+      );
+      expect(err.denial.code).toBe("GRANT_ALREADY_USED");
+      expect(err.denial.stateModified).toBe(false);
+      expect(store.count()).toBe(before);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("D: grant target confusion X vs Y is DENIED; EventStore unchanged", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    bindAgencySessionActor(harbor.agency, TEST_HUMAN_A);
+    const grant = harbor.agency.issueAuthorization(TEST_HUMAN_A, {
+      grantedTo: { id: TEST_HUMAN_A.id, kind: TEST_HUMAN_A.kind },
+      capability: "CANONICAL_COMMIT",
+      action: "memory.create",
+      target: "X",
+      now: NOW,
+    });
+    const err = await denialOfAsync(() =>
+      harbor.commitCanonical({
+        actor: TEST_HUMAN_A,
+        grant,
+        action: "memory.create",
+        target: "Y",
+        execute: async (ctx) => {
+          await adapter.create({
+            content: { type: "text", text: "confused-target" },
+            provenance: provenance(),
+            idempotencyKey: "Y",
+            createdBy: TEST_HUMAN_A.id,
+          }, ctx);
+          return { result: null, eventIds: [] };
+        },
+      })
+    );
+    expect(err.denial.code).toBe("GRANT_ACTION_MISMATCH");
+    expect(err.denial.stateModified).toBe(false);
+    expect(store.count()).toBe(0);
+    expect(isIssuedGrant(grant, harbor.agency.registry)).toBe(true);
+  });
+
+  it("E: grant action confusion create vs update/archive/restore is DENIED", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    bindAgencySessionActor(harbor.agency, TEST_HUMAN_A);
+    const grant = harbor.agency.issueAuthorization(TEST_HUMAN_A, {
+      grantedTo: { id: TEST_HUMAN_A.id, kind: TEST_HUMAN_A.kind },
+      capability: "CANONICAL_COMMIT",
+      action: "memory.create",
+      target: "X",
+      now: NOW,
+    });
+    for (const action of ["memory.update", "memory.archive", "memory.restore"] as const) {
+      const before = store.count();
+      const err = await denialOfAsync(() =>
+        harbor.commitCanonical({
+          actor: TEST_HUMAN_A,
+          grant,
+          action,
+          target: "X",
+          execute: async (ctx) => {
+            await adapter.create({
+              content: { type: "text", text: action },
+              provenance: provenance(),
+              idempotencyKey: randomUUID(),
+              createdBy: TEST_HUMAN_A.id,
+            }, ctx);
+            return { result: null, eventIds: [] };
+          },
+        })
+      );
+      expect(err.denial.code).toBe("GRANT_ACTION_MISMATCH");
+      expect(err.denial.stateModified).toBe(false);
+      expect(store.count()).toBe(before);
+    }
+    expect(isIssuedGrant(grant, harbor.agency.registry)).toBe(true);
+  });
+
+  it("F: session does not equal grant — subject mismatch and attach mints no grant", async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "auto-grant-f-"));
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const harbor = HarborService.open({
+      corePin: CORE_PIN,
+      vaultReferenceSha: "v",
+      persistDir: dir,
+    });
+    try {
+    bindAgencySessionActor(harbor.agency, TEST_HUMAN_A);
+    expect(harbor.agency.issuedGrantCount()).toBe(0);
+
+    const host = new DesktopHost();
+    host.attachActor(TEST_HUMAN_A);
+    expect(host.getSessionActor()?.id).toBe("test-human-a");
+    await expect(
+      host.memoryCreate({
+        content: { type: "text", text: "session-is-not-grant" },
+        provenance: provenance(),
+        idempotencyKey: "X",
+      })
+    ).rejects.toMatchObject({ denial: { code: "GRANT_INVALID" } });
+
+    const foreign = issueTestAuthorization(TEST_HUMAN_B, {
+      grantedTo: { id: TEST_HUMAN_B.id, kind: TEST_HUMAN_B.kind },
+      capability: "CANONICAL_COMMIT",
+      action: "memory.create",
+      target: "X",
+      now: NOW,
+    }, harbor.agency.registry);
+    const err = await denialOfAsync(() =>
+      harbor.commitCanonical({
+        actor: TEST_HUMAN_A,
+        grant: foreign,
+        action: "memory.create",
+        target: "X",
+        execute: async (ctx) => {
+          await adapter.create({
+            content: { type: "text", text: "wrong-subject" },
+            provenance: provenance(),
+            idempotencyKey: "X",
+            createdBy: TEST_HUMAN_A.id,
+          }, ctx);
+          return { result: null, eventIds: [] };
+        },
+      })
+    );
+    expect(err.denial.code).toBe("GRANT_SUBJECT_MISMATCH");
+    expect(err.denial.stateModified).toBe(false);
+    expect(store.count()).toBe(0);
+
+    expect(() =>
+      harbor.agency.issueAuthorization(TEST_HUMAN_B, {
+        grantedTo: { id: TEST_HUMAN_B.id, kind: TEST_HUMAN_B.kind },
+        capability: "CANONICAL_COMMIT",
+        action: "memory.create",
+        target: "X",
+      })
+    ).toThrow(AgencyDeniedError);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

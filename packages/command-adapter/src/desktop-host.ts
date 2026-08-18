@@ -31,12 +31,14 @@ import {
   AgencyDeniedError,
   HarborService,
   sealActor,
+  type AuthorizationGrant,
   type AuthorizedMutationContext,
   type ContextAssemblyInput,
   type ContradictionResolution,
   type EpistemicStatus,
   type HarborActor,
   type HarborExportPackage,
+  type IssueAuthorizationSpec,
 } from "@ailexsi/v3-harbor";
 import { bindAgencySessionActor } from "../../harbor/src/session-bind.js";
 
@@ -176,6 +178,23 @@ export class DesktopHost {
     return this.sessionActor;
   }
 
+  /**
+   * Explicit grant issuance. Session Actor is identity, not write authority.
+   * Delegates to the single production issuer: AgencyBoundary.issueAuthorization.
+   */
+  issueAuthorization(spec: IssueAuthorizationSpec): AuthorizationGrant {
+    const actor = this.requireSessionActor();
+    return this.requireHarbor().agency.issueAuthorization(actor, spec);
+  }
+
+  issuedGrantCount(): number {
+    return this.requireHarbor().agency.issuedGrantCount();
+  }
+
+  inspectCanonicalActions() {
+    return this.requireHarbor().agency.inspectCanonicalActions();
+  }
+
   /** Test-only: replace LLM before start (or after stop). */
   setLlmProvider(provider: LlmProvider): void {
     if (this.runtime) {
@@ -237,6 +256,7 @@ export class DesktopHost {
   async memoryCreate(
     cmd: Omit<V2CreateMemoryCommand, "idempotencyKey"> & {
       idempotencyKey?: string;
+      grant?: AuthorizationGrant;
     }
   ): Promise<MemoryDetailView> {
     const actor = this.requireSessionActor();
@@ -246,12 +266,14 @@ export class DesktopHost {
         action: "memory.create",
       });
     }
+    const { grant, ...create } = cmd;
+    const key = create.idempotencyKey ?? randomUUID();
+    const issued = this.requireProvidedGrant(grant, "memory.create", key);
     const rt = this.requireRuntime();
     this.commandCount += 1;
-    const key = cmd.idempotencyKey ?? randomUUID();
-    const cell = await this.commitThroughAgency(actor, "memory.create", key, async (ctx) => {
+    const cell = await this.commitThroughAgency(actor, issued, "memory.create", key, async (ctx) => {
       const created = await rt.adapter.create({
-        ...cmd,
+        ...create,
         idempotencyKey: key,
         createdBy: actor.id,
       }, ctx);
@@ -274,15 +296,18 @@ export class DesktopHost {
   async memoryUpdate(
     cmd: Omit<V2UpdateMemoryCommand, "idempotencyKey"> & {
       idempotencyKey?: string;
+      grant?: AuthorizationGrant;
     }
   ): Promise<MemoryDetailView> {
+    const actor = this.requireSessionActor();
+    const { grant, ...update } = cmd;
+    const issued = this.requireProvidedGrant(grant, "memory.update", String(update.memoryId));
     const rt = this.requireRuntime();
     this.commandCount += 1;
-    const actor = this.requireSessionActor();
-    const key = cmd.idempotencyKey ?? randomUUID();
-    const cell = await this.commitThroughAgency(actor, "memory.update", String(cmd.memoryId), async (ctx) => {
+    const key = update.idempotencyKey ?? randomUUID();
+    const cell = await this.commitThroughAgency(actor, issued, "memory.update", String(update.memoryId), async (ctx) => {
       const updated = await rt.adapter.update({
-        ...cmd,
+        ...update,
         idempotencyKey: key,
         createdBy: actor.id,
       }, ctx);
@@ -299,15 +324,18 @@ export class DesktopHost {
   async memoryArchive(
     cmd: Omit<V2LifecycleCommand, "idempotencyKey"> & {
       idempotencyKey?: string;
+      grant?: AuthorizationGrant;
     }
   ): Promise<MemoryDetailView> {
+    const actor = this.requireSessionActor();
+    const { grant, ...archive } = cmd;
+    const issued = this.requireProvidedGrant(grant, "memory.archive", String(archive.memoryId));
     const rt = this.requireRuntime();
     this.commandCount += 1;
-    const actor = this.requireSessionActor();
-    const key = cmd.idempotencyKey ?? randomUUID();
-    const cell = await this.commitThroughAgency(actor, "memory.archive", String(cmd.memoryId), async (ctx) => {
+    const key = archive.idempotencyKey ?? randomUUID();
+    const cell = await this.commitThroughAgency(actor, issued, "memory.archive", String(archive.memoryId), async (ctx) => {
       const archived = await rt.adapter.archive({
-        ...cmd,
+        ...archive,
         idempotencyKey: key,
         createdBy: actor.id,
       }, ctx);
@@ -324,15 +352,18 @@ export class DesktopHost {
   async memoryRestore(
     cmd: Omit<V2LifecycleCommand, "idempotencyKey"> & {
       idempotencyKey?: string;
+      grant?: AuthorizationGrant;
     }
   ): Promise<MemoryDetailView> {
+    const actor = this.requireSessionActor();
+    const { grant, ...restore } = cmd;
+    const issued = this.requireProvidedGrant(grant, "memory.restore", String(restore.memoryId));
     const rt = this.requireRuntime();
     this.commandCount += 1;
-    const actor = this.requireSessionActor();
-    const key = cmd.idempotencyKey ?? randomUUID();
-    const cell = await this.commitThroughAgency(actor, "memory.restore", String(cmd.memoryId), async (ctx) => {
+    const key = restore.idempotencyKey ?? randomUUID();
+    const cell = await this.commitThroughAgency(actor, issued, "memory.restore", String(restore.memoryId), async (ctx) => {
       const restored = await rt.adapter.restore({
-        ...cmd,
+        ...restore,
         idempotencyKey: key,
         createdBy: actor.id,
       }, ctx);
@@ -479,7 +510,12 @@ export class DesktopHost {
     const rt = this.requireRuntime();
     this.commandCount += 1;
     const proposalId = String(args.proposalId ?? "");
-    return this.commitThroughAgency(actor, "cultivation.accept", proposalId, async (ctx) => {
+    const issued = this.requireProvidedGrant(
+      args.grant as AuthorizationGrant | undefined,
+      "cultivation.accept",
+      proposalId
+    );
+    return this.commitThroughAgency(actor, issued, "cultivation.accept", proposalId, async (ctx) => {
       const { proposal, draft } = this.requireCultivation().acceptCanonical(
         String(args.sessionId ?? ""),
         proposalId,
@@ -620,19 +656,34 @@ export class DesktopHost {
     return this.requireSessionActor();
   }
 
+  /**
+   * Canonical mutation requires an already-issued AuthorizationGrant.
+   * Does not call issueAuthorization. Session Actor is not write authority.
+   */
+  private requireProvidedGrant(
+    grant: AuthorizationGrant | undefined,
+    action: string,
+    target: string
+  ): AuthorizationGrant {
+    if (!grant) {
+      throw new AgencyDeniedError(
+        this.requireSessionActor(),
+        "CANONICAL_COMMIT",
+        "canonical mutation requires an already-issued AuthorizationGrant",
+        { code: "GRANT_INVALID", action, target }
+      );
+    }
+    return grant;
+  }
+
   private async commitThroughAgency<T>(
     actor: HarborActor,
+    grant: AuthorizationGrant,
     action: string,
     target: string,
     execute: (ctx: AuthorizedMutationContext) => Promise<{ result: T; eventIds: string[] }>
   ): Promise<T> {
     const harbor = this.requireHarbor();
-    const grant = harbor.agency.issueAuthorization(actor, {
-      grantedTo: { id: actor.id, kind: actor.kind },
-      capability: "CANONICAL_COMMIT",
-      action,
-      target,
-    });
     const { result } = await harbor.commitCanonical({
       actor,
       grant,

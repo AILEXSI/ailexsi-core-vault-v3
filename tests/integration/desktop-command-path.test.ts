@@ -12,7 +12,7 @@ import {
   type DesktopHost,
 } from "@ailexsi/v2-command-adapter";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
-import { TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
+import { invokeAuthorized, TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
 import type { Provenance, MemoryVersion } from "@ailexsi/contracts";
 import type { MemoryDetailView } from "@ailexsi/v2-read-models";
 
@@ -80,7 +80,7 @@ describe("SLICE A Desktop IPC → long-lived CoreRuntime → PostgresEventStore"
 
   it("A) CREATE via IPC → persisted MemoryCreated", async () => {
     const key = randomUUID();
-    const view = (await invokeDesktopCommand("memory.create", {
+    const view = (await invokeAuthorized(host, "memory.create", {
       content: { type: "text", text: `desktop-create-${key.slice(0, 8)}` },
       provenance: provenance(),
       idempotencyKey: key,
@@ -100,7 +100,7 @@ describe("SLICE A Desktop IPC → long-lived CoreRuntime → PostgresEventStore"
   });
 
   it("B) GET via IPC retrieves created memory", async () => {
-    const created = (await invokeDesktopCommand("memory.create", {
+    const created = (await invokeAuthorized(host, "memory.create", {
       content: { type: "text", text: "desktop-get-target" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
@@ -119,13 +119,13 @@ describe("SLICE A Desktop IPC → long-lived CoreRuntime → PostgresEventStore"
   });
 
   it("C) UPDATE via IPC — version++, event persisted, read model updated", async () => {
-    const created = (await invokeDesktopCommand("memory.create", {
+    const created = (await invokeAuthorized(host, "memory.create", {
       content: { type: "text", text: "desktop-upd-v1" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     })) as MemoryDetailView;
 
-    const updated = (await invokeDesktopCommand("memory.update", {
+    const updated = (await invokeAuthorized(host, "memory.update", {
       memoryId: created.id,
       content: { type: "text", text: "desktop-upd-v2" },
       changeReason: "slice-a-update",
@@ -142,13 +142,13 @@ describe("SLICE A Desktop IPC → long-lived CoreRuntime → PostgresEventStore"
   });
 
   it("D) ARCHIVE via IPC — lifecycle archived + event", async () => {
-    const created = (await invokeDesktopCommand("memory.create", {
+    const created = (await invokeAuthorized(host, "memory.create", {
       content: { type: "text", text: "desktop-arch" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     })) as MemoryDetailView;
 
-    const archived = (await invokeDesktopCommand("memory.archive", {
+    const archived = (await invokeAuthorized(host, "memory.archive", {
       memoryId: created.id,
       reason: "slice-a-archive",
       idempotencyKey: randomUUID(),
@@ -162,16 +162,16 @@ describe("SLICE A Desktop IPC → long-lived CoreRuntime → PostgresEventStore"
   });
 
   it("E) RESTORE via IPC — lifecycle active + event", async () => {
-    const created = (await invokeDesktopCommand("memory.create", {
+    const created = (await invokeAuthorized(host, "memory.create", {
       content: { type: "text", text: "desktop-rest" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     })) as MemoryDetailView;
-    await invokeDesktopCommand("memory.archive", {
+    await invokeAuthorized(host, "memory.archive", {
       memoryId: created.id,
       idempotencyKey: randomUUID(),
     });
-    const restored = (await invokeDesktopCommand("memory.restore", {
+    const restored = (await invokeAuthorized(host, "memory.restore", {
       memoryId: created.id,
       reason: "slice-a-restore",
       idempotencyKey: randomUUID(),
@@ -186,17 +186,17 @@ describe("SLICE A Desktop IPC → long-lived CoreRuntime → PostgresEventStore"
   });
 
   it("F) HISTORY via IPC corresponds to EventStore history", async () => {
-    const created = (await invokeDesktopCommand("memory.create", {
+    const created = (await invokeAuthorized(host, "memory.create", {
       content: { type: "text", text: "desktop-hist-v1" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     })) as MemoryDetailView;
-    await invokeDesktopCommand("memory.update", {
+    await invokeAuthorized(host, "memory.update", {
       memoryId: created.id,
       content: { type: "text", text: "desktop-hist-v2" },
       idempotencyKey: randomUUID(),
     });
-    await invokeDesktopCommand("memory.archive", {
+    await invokeAuthorized(host, "memory.archive", {
       memoryId: created.id,
       idempotencyKey: randomUUID(),
     });
@@ -212,17 +212,17 @@ describe("SLICE A Desktop IPC → long-lived CoreRuntime → PostgresEventStore"
   });
 
   it("G) AAS-54 desktop: CREATE→UPDATE→ARCHIVE → CLEAR → REBUILD → IDENTICAL", async () => {
-    const created = (await invokeDesktopCommand("memory.create", {
+    const created = (await invokeAuthorized(host, "memory.create", {
       content: { type: "text", text: "desktop-aas54-v1" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
     })) as MemoryDetailView;
-    await invokeDesktopCommand("memory.update", {
+    await invokeAuthorized(host, "memory.update", {
       memoryId: created.id,
       content: { type: "text", text: "desktop-aas54-v2" },
       idempotencyKey: randomUUID(),
     });
-    await invokeDesktopCommand("memory.archive", {
+    await invokeAuthorized(host, "memory.archive", {
       memoryId: created.id,
       idempotencyKey: randomUUID(),
     });

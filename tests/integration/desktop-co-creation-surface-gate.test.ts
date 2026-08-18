@@ -15,7 +15,7 @@ import {
 } from "@ailexsi/v2-command-adapter";
 import { MockLlmProvider } from "@ailexsi/v2-cultivation";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
-import { TEST_CHANNEL_TOKEN, TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
+import { TEST_CHANNEL_TOKEN, TEST_SESSION_ACTOR, withHostGrant } from "../helpers/authorized-write.js";
 import type { Provenance } from "@ailexsi/contracts";
 
 const CORE = "652d01eb06dd0841c3b475023883675af6dcd698";
@@ -99,12 +99,12 @@ describe("DESKTOP CO-CREATION SURFACE GATE", () => {
     const gen = host.generation;
 
     // DCS-01 retrieve / context via bridge (same path as desktop client HTTP)
-    const seed = (await post(base, "memory.create", {
+    const seed = (await post(base, "memory.create", withHostGrant(host, "memory.create", {
       content: { type: "text", text: "dcs-seed" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
       context: { tags: ["dcs"], project: "co-creation" },
-    })) as { id: string };
+    }))) as { id: string };
 
     const retrieved = (await post(base, "memory.retrieve", {
       pageSize: 10,
@@ -157,12 +157,12 @@ describe("DESKTOP CO-CREATION SURFACE GATE", () => {
       text: "Create",
       memoryIds: [seed.id],
     })) as { proposal: { id: string } };
-    const accepted = (await post(base, "cultivation.proposal.accept", {
+    const accepted = (await post(base, "cultivation.proposal.accept", withHostGrant(host, "cultivation.proposal.accept", {
       sessionId: session.id,
       proposalId: chat3.proposal.id,
       editedText: "dcs-human-canonical",
       idempotencyKey: randomUUID(),
-    })) as {
+    }))) as {
       cell: { identity: { id: string }; content: unknown };
       proposal: { status: string };
     };

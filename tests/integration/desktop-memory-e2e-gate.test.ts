@@ -20,7 +20,7 @@ import {
   type DesktopHost,
 } from "@ailexsi/v2-command-adapter";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
-import { TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
+import { invokeAuthorized, TEST_SESSION_ACTOR } from "../helpers/authorized-write.js";
 import type { Provenance } from "@ailexsi/contracts";
 import type { MemoryDetailView, MemoryListItem, ListMemoriesPage } from "@ailexsi/v2-read-models";
 
@@ -90,7 +90,7 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
 
   it("A–F) CREATE → GET → UPDATE → HISTORY → ARCHIVE → RESTORE via Desktop IPC", async () => {
     const createKey = randomUUID();
-    const created = (await invokeDesktopCommand("memory.create", {
+    const created = (await invokeAuthorized(host, "memory.create", {
       content: { type: "text", text: "e2e-v1" },
       provenance: provenance(),
       idempotencyKey: createKey,
@@ -117,7 +117,7 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
     expect((got!.content.value as { text: string }).text).toBe("e2e-v1");
 
     // UPDATE
-    const updated = (await invokeDesktopCommand("memory.update", {
+    const updated = (await invokeAuthorized(host, "memory.update", {
       memoryId: created.id,
       content: { type: "text", text: "e2e-v2" },
       changeReason: "e2e-update",
@@ -148,7 +148,7 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
     expect(hist[0]!.eventId).toBe(stream[0]!.event.eventId);
 
     // ARCHIVE
-    const archived = (await invokeDesktopCommand("memory.archive", {
+    const archived = (await invokeAuthorized(host, "memory.archive", {
       memoryId: created.id,
       reason: "e2e-archive",
       idempotencyKey: randomUUID(),
@@ -157,7 +157,7 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
     expect(archived.currentVersion.value).toBe(3);
 
     // RESTORE
-    const restored = (await invokeDesktopCommand("memory.restore", {
+    const restored = (await invokeAuthorized(host, "memory.restore", {
       memoryId: created.id,
       reason: "e2e-restore",
       idempotencyKey: randomUUID(),
@@ -207,7 +207,7 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
       expect(isoHost.storeConstructorName()).toBe("PostgresEventStore");
 
       for (let i = 0; i < 5; i++) {
-        await invokeDesktopCommand("memory.create", {
+        await invokeAuthorized(isoHost, "memory.create", {
           content: { type: "text", text: `list-${i}` },
           provenance: provenance(),
           idempotencyKey: randomUUID(),
@@ -294,25 +294,25 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
         actor: TEST_SESSION_ACTOR,
       });
 
-      const a = (await invokeDesktopCommand("memory.create", {
+      const a = (await invokeAuthorized(isoHost, "memory.create", {
         content: { type: "text", text: "replay-a" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
       })) as MemoryDetailView;
-      await invokeDesktopCommand("memory.update", {
+      await invokeAuthorized(isoHost, "memory.update", {
         memoryId: a.id,
         content: { type: "text", text: "replay-a-v2" },
         idempotencyKey: randomUUID(),
       });
-      await invokeDesktopCommand("memory.archive", {
+      await invokeAuthorized(isoHost, "memory.archive", {
         memoryId: a.id,
         idempotencyKey: randomUUID(),
       });
-      await invokeDesktopCommand("memory.restore", {
+      await invokeAuthorized(isoHost, "memory.restore", {
         memoryId: a.id,
         idempotencyKey: randomUUID(),
       });
-      const b = (await invokeDesktopCommand("memory.create", {
+      const b = (await invokeAuthorized(isoHost, "memory.create", {
         content: { type: "text", text: "replay-b" },
         provenance: provenance(),
         idempotencyKey: randomUUID(),
@@ -367,7 +367,7 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
   }, 180_000);
 
   it("NO-APPEND: GET LIST HISTORY REBUILD do not append events", async () => {
-    const created = (await invokeDesktopCommand("memory.create", {
+    const created = (await invokeAuthorized(host, "memory.create", {
       content: { type: "text", text: "no-append-desktop" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),
@@ -392,7 +392,7 @@ describe("PHASE 3 — DESKTOP MEMORY E2E (live PostgresEventStore)", () => {
   });
 
   it("classification: content CANONICAL, title DERIVED", async () => {
-    const v = (await invokeDesktopCommand("memory.create", {
+    const v = (await invokeAuthorized(host, "memory.create", {
       content: { type: "text", text: "class-check" },
       provenance: provenance(),
       idempotencyKey: randomUUID(),

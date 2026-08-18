@@ -338,7 +338,7 @@ export class HarborService {
     actor: HarborActor,
     extras?: { title?: string; description?: string; now?: string }
   ): CultivationProposal {
-    // Decision only. ACCEPT is not a Grant and does not persist Core.
+    // Recorded decision only. ACCEPT is not a commit and not proof of truth.
     if (status === "ACCEPTED" || status === "EDITED") {
       this.agency.require(actor, "CANONICAL_COMMIT", "decideCultivation", proposalId);
     } else {
@@ -453,7 +453,7 @@ export class HarborService {
   ): HarborProposal {
     const p = this.proposals.get(proposalId);
     if (!p) throw new Error(`Proposal ${proposalId} not found`);
-    // Decision only. ACCEPT is not a Grant and does not persist Core.
+    // Recorded decision only. ACCEPT is not a commit and not proof of truth.
     if (status === "ACCEPTED" || status === "EDITED") {
       this.agency.require(actor, "CANONICAL_COMMIT", "decideProposal", proposalId);
     } else {
@@ -610,7 +610,7 @@ export class HarborService {
   ): RelationProposal {
     const current = this.relationProposals.get(proposalId);
     if (!current) throw new Error(`Relation proposal ${proposalId} not found`);
-    // Decision only. ACCEPT is not a Grant and does not persist Core.
+    // Recorded decision only. ACCEPT is not a commit and not proof of truth.
     if (status === "ACCEPTED" || status === "EDITED") {
       this.agency.require(actor, "CANONICAL_COMMIT", "decideRelation", proposalId);
     } else {
@@ -936,5 +936,9 @@ function classifyProposalType(output: string): HarborProposalType {
   if (t.includes("insufficient evidence")) return "insufficient_evidence";
   if (t.includes("conflicting evidence")) return "conflicting_evidence";
   if (t.includes("no action")) return "no_action";
-  return "create_memory";
+  if (/\bupdate(?:\s+|_)memory\b/.test(t)) return "update_memory";
+  if (/\bcreate(?:\s+|_)memory\b/.test(t) || /\bremember\b/.test(t) || /\bstore memory\b/.test(t)) {
+    return "create_memory";
+  }
+  return "insufficient_evidence";
 }

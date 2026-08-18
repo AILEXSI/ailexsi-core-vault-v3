@@ -209,7 +209,7 @@ describe("Deterministic cultivation proposals", () => {
     const accepted = harbor.decideCultivation(p!.proposalId, "ACCEPTED", HUMAN, { now: NOW });
     expect(accepted.status).toBe("ACCEPTED");
     expect(store.count()).toBe(events);
-    expect([...harbor.epistemic.values()].every((e) => e.status === "FACT")).toBe(true);
+    expect([...harbor.epistemic.values()].every((e) => e.status === "DERIVED")).toBe(true);
   });
 
   it("survives restart/reopen and CLEAR → REBUILD for generated proposals", async () => {

@@ -10,6 +10,7 @@ export type HarborActorKind = "human" | "ai" | "system";
 
 export interface HarborActor {
   id: string;
+  /** Identity claim/configuration. kind=human is not proof of biological identity. */
   kind: HarborActorKind;
   authorizeCanonical?: boolean;
   authorizeExternal?: boolean;
@@ -101,6 +102,7 @@ export interface TemporalValidity {
   validUntil?: string;
   lastConfirmed?: string;
   reviewDue?: string;
+  /** Truth status. Lifecycle/timestamps alone do not justify is_true/was_true. */
   temporalStatus: "is_true" | "was_true" | "unknown";
   class: HarborClass;
 }

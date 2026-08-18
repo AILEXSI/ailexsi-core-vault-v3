@@ -19,7 +19,8 @@ export function temporalFromMemory(input: {
     validUntil,
     lastConfirmed,
     reviewDue: undefined,
-    temporalStatus: ended ? "was_true" : lastConfirmed ? "is_true" : "unknown",
+    // Lifecycle/timestamps are not truth. is_true/was_true are not derived from existence.
+    temporalStatus: "unknown",
     class: HARBOR_CLASS,
   };
 }

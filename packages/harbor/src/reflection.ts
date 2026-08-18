@@ -40,8 +40,8 @@ export function reflectOnMemories(opts: {
     if (m.lifecycle === "archived") {
       findings.push({
         kind: "abandoned_goal",
-        statement: `Memory ${m.id} is archived.`,
-        interpretation: "This may be an abandoned or completed thread.",
+        statement: `Memory ${m.id} has lifecycle archived.`,
+        interpretation: "Archived is a lifecycle state, not a truth claim. This may be an abandoned or completed thread.",
         confidence: 0.45,
         evidenceMemoryIds: [m.id],
       });

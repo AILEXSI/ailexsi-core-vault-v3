@@ -24,8 +24,10 @@ import type { Provenance } from "@ailexsi/contracts";
 import {
   AgencyDeniedError,
   HarborService,
+  defaultEpistemicForCoreMemory,
   isConsumedGrant,
   isIssuedGrant,
+  temporalFromMemory,
 } from "@ailexsi/v3-harbor";
 import {
   authorizedCreate,
@@ -1494,5 +1496,129 @@ describe("semantic honesty — identity, grant bearer, connectome, ACCEPT", () =
     expect(decided.resultingEventIds).toEqual([]);
     expect(harbor.proposals.get(proposal.proposalId)?.resultingEventIds).toEqual([]);
     expect(harbor.agency.inspectCanonicalActions()).toHaveLength(0);
+  });
+
+  it("A: Core Memory existence is not FACT and not confidence 1", async () => {
+    const overlay = defaultEpistemicForCoreMemory("mem-1", NOW);
+    expect(overlay.status).not.toBe("FACT");
+    expect(overlay.status).toBe("DERIVED");
+    expect(overlay.confidence).toBeLessThan(1);
+    expect(overlay.note).toMatch(/not proof/i);
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const cell = await authorizedCreate(adapter, {
+      content: { type: "text", text: "recorded only" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    harbor.scan([cell], TEST_HUMAN_A, NOW);
+    const rec = harbor.epistemic.get(cell.identity.id);
+    expect(rec?.status).toBe("DERIVED");
+    expect(rec?.confidence).toBeLessThan(1);
+  });
+
+  it("B: timestamps/lifecycle never produce is_true/was_true", () => {
+    const active = temporalFromMemory({
+      memoryId: "m-active",
+      createdAt: NOW,
+      confirmedAt: NOW,
+      lifecycle: "active",
+    });
+    const archived = temporalFromMemory({
+      memoryId: "m-arch",
+      createdAt: NOW,
+      confirmedAt: NOW,
+      archivedAt: NOW,
+      lifecycle: "archived",
+    });
+    expect(active.temporalStatus).toBe("unknown");
+    expect(archived.temporalStatus).toBe("unknown");
+    expect(JSON.stringify({ active, archived })).not.toMatch(/is_true|was_true/);
+  });
+
+  it("C/D: traverse found:true is a structural path, not relation truth; CORE_REFERENCE is not truth evidence", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const a = await authorizedCreate(adapter, {
+      content: { type: "text", text: "node-a" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const b = await authorizedCreate(adapter, {
+      content: { type: "text", text: "node-b" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const withRef = {
+      ...a,
+      relationRefs: [
+        {
+          relationId: "ref-ab",
+          targetMemoryId: b.identity.id,
+          type: "RELATES_TO",
+          direction: "outgoing" as const,
+        },
+      ],
+    };
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const view = harbor.connectome([withRef, b], TEST_HUMAN_A, NOW);
+    const coreRef = view.relations.find((r) => r.status === "CORE_REFERENCE");
+    expect(coreRef).toBeDefined();
+    expect(coreRef!.confidence).toBeLessThan(1);
+    expect(coreRef!.explanation.why).toMatch(/not evidence that the asserted relation is true/i);
+    const pathResult = harbor.traverseConnectome(
+      [withRef, b],
+      a.identity.id,
+      b.identity.id,
+      TEST_HUMAN_A
+    );
+    expect(pathResult.found).toBe(true);
+    expect(pathResult.reason).toMatch(/structural path/i);
+    expect(pathResult.reason).toMatch(/not that the relation is true/i);
+    expect(pathResult.reason).toMatch(/CORE_REFERENCE endpoints are not truth evidence/i);
+  });
+
+  it("E: prefers tea vs coffee is a possible inferred contradiction, not proven", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const tea = await authorizedCreate(adapter, {
+      content: { type: "text", text: "user prefers tea" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const coffee = await authorizedCreate(adapter, {
+      content: { type: "text", text: "user prefers coffee" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const found = harbor.scan([tea, coffee], TEST_HUMAN_A, NOW);
+    expect(found).toHaveLength(1);
+    expect(found[0]!.resolution).toBe("UNRESOLVED");
+    expect(found[0]!.possibleExplanations.join(" ")).toMatch(/possible inferred contradiction/i);
+    expect(found[0]!.possibleExplanations.join(" ")).toMatch(/not a proven contradiction/i);
+    expect(JSON.stringify(found[0])).not.toMatch(/proven fact|is true/i);
+  });
+
+  it("F: ACCEPT is a decision only — EventStore unchanged, no Grant consumed", async () => {
+    const store = new InMemoryEventStore();
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const proposal = await harbor.propose(TEST_AI, { text: "remember tea", sourceMemoryIds: [] }, NOW);
+    const issued = harbor.agency.issuedGrantCount();
+    const decided = harbor.decideProposal(proposal.proposalId, "ACCEPTED", TEST_HUMAN_A, { now: NOW });
+    expect(decided.status).toBe("ACCEPTED");
+    expect(decided.resultingEventIds).toEqual([]);
+    expect(harbor.agency.issuedGrantCount()).toBe(issued);
+    expect(harbor.agency.inspectCanonicalActions()).toHaveLength(0);
+    expect(store.count()).toBe(0);
+  });
+
+  it("G: proposal classification without sufficient evidence is not create_memory", async () => {
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const p = await harbor.propose(TEST_AI, { text: "hello there, maybe later", sourceMemoryIds: [] }, NOW);
+    expect(p.proposalType).toBe("insufficient_evidence");
+    expect(p.proposalType).not.toBe("create_memory");
+    expect(p.resultingEventIds).toEqual([]);
   });
 });

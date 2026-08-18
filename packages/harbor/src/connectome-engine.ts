@@ -135,7 +135,7 @@ export function relationFromCanonicalMemory(cell: MemoryCell): ConnectomeRelatio
     to: data.to,
     type: data.type,
     status: "CANONICAL_MEMORY",
-    confidence: 1,
+    confidence: 0.5,
     evidenceMemoryIds: [...(data.evidenceMemoryIds ?? [])],
     evidenceContradictionIds: [],
     evidenceReflectionIds: [],
@@ -150,7 +150,7 @@ export function relationFromCanonicalMemory(cell: MemoryCell): ConnectomeRelatio
       from: data.from,
       to: data.to,
       status: "CANONICAL_MEMORY",
-      why: "Core Memory structured cell citing grant metadata from the relation.commit path. Citations are not grants and do not prove the relation.",
+      why: "Core Memory structured cell citing grant metadata from the relation.commit path. Authorized persistence is not proof that the relation is true. Citations are not grants.",
       source: `memory:${cell.identity.id}`,
       when,
       authority: `citation authorizedById:${authorizedById} grantId:${grantId} (citation, not a grant)`,
@@ -188,10 +188,10 @@ export function assembleConnectome(input: {
           to: ref.direction === "outgoing" ? ref.targetMemoryId : m.identity.id,
           type: mapCoreType(String(ref.type)),
           status: "CORE_REFERENCE",
-          confidence: 1,
+          confidence: 0.4,
           evidenceMemoryIds: [m.identity.id, ref.targetMemoryId],
           now: input.now,
-          why: "Recorded on the Core Memory relationRefs field.",
+          why: "Recorded on the Core Memory relationRefs field. Endpoints existing is not evidence that the asserted relation is true.",
           source: `memory.relationRefs:${ref.relationId}`,
           authority: "Core Memory cell (no V3 Relation aggregate)",
         })
@@ -433,7 +433,7 @@ export function traverseConnectome(
       from,
       to,
       hops: canonical,
-      reason: `Path of ${canonical.length} hop(s). Statuses are per-edge; inferred hops are not canonical.`,
+      reason: `Structural path of ${canonical.length} hop(s) in the permitted graph. found:true means a path exists, not that the relation is true. CORE_REFERENCE endpoints are not truth evidence.`,
     };
   }
   const speculative = walkDirected(

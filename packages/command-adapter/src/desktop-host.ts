@@ -157,7 +157,7 @@ export class DesktopHost {
     this.startGeneration += 1;
   }
 
-  /** Bind the Session Actor once. Request actorKind/actorId are never the actor. */
+  /** Bind the Session Actor once. Request actorKind/actorId are never the actor. kind=human is an identity claim, not identity proof. */
   attachActor(actor: HarborActor): void {
     if (this.sessionActor) {
       throw new AgencyDeniedError(

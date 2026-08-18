@@ -77,7 +77,12 @@ export type DesktopMemoryCommand =
   | "harbor.query.source"
   | "harbor.query.status"
   | "harbor.query.contradictions"
-  | "harbor.query.provenance";
+  | "harbor.query.provenance"
+  | "harbor.connectome"
+  | "harbor.connectome.propose"
+  | "harbor.connectome.decide"
+  | "harbor.connectome.traverse"
+  | "harbor.connectome.explain";
 
 export interface DesktopHostStartOptions extends CreateCoreRuntimeOptions {
   /** Optional fixed connection string (tests). */
@@ -602,6 +607,59 @@ export class DesktopHost {
     return this.requireHarbor().graph(cells, this.actorOf(args));
   }
 
+  async harborConnectome(args: Record<string, unknown> = {}) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    const cells = await this.loadCells();
+    return this.requireHarbor().connectome(cells, this.actorOf(args));
+  }
+
+  async harborConnectomePropose(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor().proposeRelation(this.actorOf({ ...args, actorKind: args.actorKind ?? "ai" }), {
+      from: String(args.from ?? ""),
+      to: String(args.to ?? ""),
+      type: args.type as "RELATES_TO",
+      reason: String(args.reason ?? ""),
+      evidenceMemoryIds: (args.evidenceMemoryIds as string[]) ?? [],
+    });
+  }
+
+  async harborConnectomeDecide(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    return this.requireHarbor().decideRelation(
+      String(args.proposalId ?? ""),
+      args.status as "ACCEPTED" | "EDITED" | "REJECTED" | "DEFERRED",
+      this.actorOf(args)
+    );
+  }
+
+  async harborConnectomeTraverse(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    const cells = await this.loadCells();
+    return this.requireHarbor().traverseConnectome(
+      cells,
+      String(args.from ?? ""),
+      String(args.to ?? ""),
+      this.actorOf(args),
+      typeof args.maxDepth === "number" ? args.maxDepth : 6
+    );
+  }
+
+  async harborConnectomeExplain(args: Record<string, unknown>) {
+    this.requireRuntime();
+    this.commandCount += 1;
+    const cells = await this.loadCells();
+    return this.requireHarbor().explainConnectomeRelation(
+      cells,
+      String(args.relationId ?? ""),
+      this.actorOf(args)
+    );
+  }
+
   async harborExport(args: Record<string, unknown> = {}) {
     this.requireRuntime();
     this.commandCount += 1;
@@ -814,6 +872,16 @@ export async function invokeDesktopCommand(
       return host.harborConfirm(args);
     case "harbor.graph":
       return host.harborGraph(args);
+    case "harbor.connectome":
+      return host.harborConnectome(args);
+    case "harbor.connectome.propose":
+      return host.harborConnectomePropose(args);
+    case "harbor.connectome.decide":
+      return host.harborConnectomeDecide(args);
+    case "harbor.connectome.traverse":
+      return host.harborConnectomeTraverse(args);
+    case "harbor.connectome.explain":
+      return host.harborConnectomeExplain(args);
     case "harbor.export":
       return host.harborExport(args);
     case "harbor.import":

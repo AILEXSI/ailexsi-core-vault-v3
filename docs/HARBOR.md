@@ -58,7 +58,11 @@ Human confirmation produces `USER_ASSERTED`.
 `harbor.import` (scan only) `harbor.import.validate` `harbor.import.preview`  
 `harbor.import.conflicts` `harbor.import.confirm` `harbor.import.reject` `harbor.rebuild`  
 `harbor.query.memory` `harbor.query.list` `harbor.query.source`  
-`harbor.query.status` `harbor.query.contradictions` `harbor.query.provenance`
+`harbor.query.status` `harbor.query.contradictions` `harbor.query.provenance`  
+`harbor.connectome` `harbor.connectome.propose` `harbor.connectome.decide`  
+`harbor.connectome.traverse` `harbor.connectome.explain`
+
+Connectome is **V3-DERIVED**. There is no Core Relation aggregate. Observed edges come from Memory `relationRefs` and `provenance.parentMemoryIds`. Derived/inferred/proposed edges come from Harbor overlays. A human-authorized persist writes a **Memory structured cell** (`kind: connectome-relation`) via Agency `relation.commit`. That cell is Core-canonical Memory, not a Relation domain. Accepting a relation proposal does not persist.
 
 Import WRITE is derived-only and requires a human after SCAN → VALIDATE → PREVIEW → CONFLICT.
 

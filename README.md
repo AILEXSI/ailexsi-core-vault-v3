@@ -119,7 +119,7 @@ not sufficient for GREEN.
 | Migration scanner + dry-run (no production write) | VERIFIED (tests) |
 | Dual-write guard | VERIFIED (static + tests) |
 | Desktop Tauri shell | PARTIAL (foundation UI) |
-| Connectome | **NOT implemented** |
+| Connectome | GREEN / implemented (derived graph + Agency Memory persist; no Relation aggregate) |
 | Integration | **NOT implemented** |
 | Full Acceptance / system integrity gate | GREEN / implemented (`test:integrity`, live Postgres) |
 | Hardening | **NOT implemented** |

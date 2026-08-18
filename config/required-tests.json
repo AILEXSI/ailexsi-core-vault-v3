@@ -17,6 +17,8 @@
     "tests/unit/harbor-agency-commit-proposal.test.ts",
     "tests/unit/version-consistency.test.ts",
     "tests/integration/ai-writeback-safety.test.ts",
-    "tests/integration/v3-full-acceptance-gate.test.ts"
+    "tests/integration/v3-full-acceptance-gate.test.ts",
+    "tests/unit/harbor-connectome.test.ts",
+    "tests/integration/v3-connectome-gate.test.ts"
   ]
 }

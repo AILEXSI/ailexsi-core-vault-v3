@@ -16,7 +16,7 @@ CORE VAULT V2 (historical source @ d684aa4)
 CORE VAULT V3 (harbor around Core)
      │
      ├── Memory (CORE-BACKED)
-     ├── Connectome (V2 presentation + Harbor wrap)
+     ├── Connectome (V3-DERIVED graph; Memory-backed authorized persist; no Relation aggregate)
      ├── Continuity (V2 derived artifact)
      ├── Cultivation (V2 + Core writeback on accept)
      ├── Retrieval / read models (V2)
@@ -92,7 +92,7 @@ Tauri 2 + React + TypeScript foundation. Web-mode UI for foundation verification
 |--------|----------------|
 | Memory | **CORE-BACKED** (Phase 06/07) |
 | Insights / Decisions / Questions / Tensions / Projects | **V2-LOCAL** presentation labels over Memory or future Core domains — **not** pretend Core aggregates |
-| Connectome | **V2-DERIVED** presentation; Core Relation aggregate = **PLANNED** |
+| Connectome | **V3-DERIVED** graph over Memory + Harbor overlays. Core Relation aggregate = **PLANNED**. Authorized persist = Memory structured cell via Agency, not a Relation domain. |
 | Continuity | **V2-DERIVED** artifact |
 | Cultivation chat | **V2-EPHEMERAL** until acceptance → Core command |
 | Physics / Knowledge / Reflection / Learning / Trust / Scheduler | **PLANNED** (not in Core Phase 07 surface for V2 to consume as domains) |

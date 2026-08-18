@@ -27,6 +27,20 @@ import { MockHarborProvider, recordInvocation, type HarborProvider } from "./pro
 import { buildHarborExport, inspectHarborExport, type HarborExportPackage } from "./export.js";
 import { buildHarborConnectome } from "./connectome-harbor.js";
 import {
+  assembleConnectome,
+  canonicalRelationPayload,
+  createRelationProposal,
+  explainRelation,
+  listRelations,
+  traverseConnectome,
+  type ConnectomePath,
+  type ConnectomeView,
+  type RelationProposal,
+  type RelationProposalStatus,
+  type RelationStatus,
+} from "./connectome-engine.js";
+import type { HarborEdgeType } from "./types.js";
+import {
   awaitConfirm,
   conflictImportSession,
   createImportSession,
@@ -67,6 +81,8 @@ export class HarborService {
   readonly proposals = new Map<string, HarborProposal>();
   /** Session-local cultivation proposals. Never persisted to the Derived Index. */
   readonly cultivation = new Map<string, CultivationProposal>();
+  /** Session-local relation proposals. Never a Core Relation aggregate. */
+  readonly relationProposals = new Map<string, RelationProposal>();
   readonly invocations: ReturnType<typeof recordInvocation>[] = [];
   readonly imports = new Map<string, ImportSession>();
   readonly provider: HarborProvider;
@@ -166,6 +182,7 @@ export class HarborService {
       })),
       derivedIndex: this.derivedIndexInfo(),
       cultivation: [...this.cultivation.values()],
+      relationProposals: [...this.relationProposals.values()],
       agency: this.agency.inspect(),
     };
   }
@@ -512,6 +529,153 @@ export class HarborService {
     });
   }
 
+  connectome(memories: MemoryCell[], actor: HarborActor, now = nowIso()): ConnectomeView {
+    this.agency.require(actor, "READ_ONLY", "connectome");
+    return assembleConnectome({
+      memories,
+      contradictions: [...this.contradictions.values()],
+      reflections: [...this.reflections.values()],
+      proposals: [...this.proposals.values()],
+      relationProposals: [...this.relationProposals.values()],
+      now,
+    });
+  }
+
+  listConnectomeRelations(
+    memories: MemoryCell[],
+    actor: HarborActor,
+    filter?: { status?: RelationStatus; type?: HarborEdgeType; memoryId?: string },
+    now = nowIso()
+  ) {
+    return listRelations(this.connectome(memories, actor, now), filter);
+  }
+
+  explainConnectomeRelation(
+    memories: MemoryCell[],
+    relationId: string,
+    actor: HarborActor,
+    now = nowIso()
+  ) {
+    this.agency.require(actor, "READ_ONLY", "explainConnectome", relationId);
+    const explanation = explainRelation(this.connectome(memories, actor, now), relationId);
+    if (!explanation) {
+      return {
+        what: "unknown",
+        why: "No relation with that id in the current derived graph.",
+        source: "none",
+        status: "INFERRED" as const,
+        when: now,
+        authority: "none",
+      };
+    }
+    return explanation;
+  }
+
+  traverseConnectome(
+    memories: MemoryCell[],
+    from: string,
+    to: string,
+    actor: HarborActor,
+    maxDepth = 6,
+    now = nowIso()
+  ): ConnectomePath {
+    this.agency.require(actor, "READ_ONLY", "traverseConnectome");
+    return traverseConnectome(this.connectome(memories, actor, now), from, to, maxDepth);
+  }
+
+  proposeRelation(
+    actor: HarborActor,
+    spec: { from: string; to: string; type: HarborEdgeType; reason: string; evidenceMemoryIds?: string[] },
+    now = nowIso()
+  ): RelationProposal {
+    this.agency.require(actor, "PROPOSE", "proposeRelation");
+    const next = createRelationProposal(spec, actor, now);
+    this.relationProposals.set(next.proposalId, next);
+    return structuredClone(next);
+  }
+
+  decideRelation(
+    proposalId: string,
+    status: Extract<RelationProposalStatus, "ACCEPTED" | "EDITED" | "REJECTED" | "DEFERRED">,
+    actor: HarborActor,
+    now = nowIso()
+  ): RelationProposal {
+    const current = this.relationProposals.get(proposalId);
+    if (!current) throw new Error(`Relation proposal ${proposalId} not found`);
+    if (status === "ACCEPTED" || status === "EDITED") {
+      this.agency.require(actor, "CANONICAL_COMMIT", "decideRelation", proposalId);
+    } else {
+      this.agency.require(actor, "DERIVED_WRITE", "decideRelation", proposalId);
+    }
+    if (actor.kind !== "human") {
+      throw new Error("Relation decision requires a human");
+    }
+    if (current.status === "COMMITTED") {
+      throw new Error("Relation proposal already committed");
+    }
+    const next: RelationProposal = {
+      ...current,
+      status,
+      decidedBy: actor.id,
+      decidedAt: now,
+    };
+    this.relationProposals.set(proposalId, next);
+    return structuredClone(next);
+  }
+
+  async commitRelation<T>(
+    request: CanonicalCommitRequest<T> & { proposalId: string }
+  ): Promise<{ result: T; record: CanonicalActionRecord; proposal: RelationProposal }> {
+    const proposal = this.relationProposals.get(request.proposalId);
+    if (!proposal) throw new Error(`Relation proposal ${request.proposalId} not found`);
+    if (proposal.status !== "ACCEPTED" && proposal.status !== "EDITED") {
+      this.agency.refuseProposalPersist(
+        request.actor,
+        request.proposalId,
+        "Relation proposal must be ACCEPTED or EDITED before authorized persist"
+      );
+    }
+    if (proposal.resultingEventIds.length > 0 || proposal.status === "COMMITTED") {
+      this.agency.refuseProposalPersist(
+        request.actor,
+        request.proposalId,
+        "Relation proposal already produced canonical events"
+      );
+    }
+    if (request.action !== "relation.commit" || request.target !== request.proposalId) {
+      this.agency.refuseProposalPersist(
+        request.actor,
+        request.proposalId,
+        "Relation persist requires action relation.commit bound to the proposalId"
+      );
+    }
+    const { result, record } = await this.agency.commitCanonical(request);
+    const next: RelationProposal = {
+      ...proposal,
+      status: "COMMITTED",
+      resultingEventIds: [...record.resultingEventIds],
+      canonicalMemoryId:
+        result && typeof result === "object" && result !== null && "identity" in result
+          ? String((result as { identity?: { id?: string } }).identity?.id ?? "")
+          : proposal.canonicalMemoryId,
+    };
+    this.relationProposals.set(proposal.proposalId, next);
+    return { result, record, proposal: structuredClone(next) };
+  }
+
+  relationContentForCommit(proposalId: string, grantId: string, authorizedById: string) {
+    const proposal = this.relationProposals.get(proposalId);
+    if (!proposal) throw new Error(`Relation proposal ${proposalId} not found`);
+    return canonicalRelationPayload({
+      from: proposal.from,
+      to: proposal.to,
+      type: proposal.type,
+      evidenceMemoryIds: proposal.evidenceMemoryIds,
+      grantId,
+      authorizedById,
+    });
+  }
+
   exportPackage(selectedCanonicalMemoryIds: string[], actor: HarborActor, now = nowIso()): HarborExportPackage {
     this.agency.require(actor, "READ_ONLY", "exportPackage");
     return buildHarborExport({
@@ -615,6 +779,7 @@ export class HarborService {
     this.reflections.clear();
     this.proposals.clear();
     this.cultivation.clear();
+    this.relationProposals.clear();
     this.invocations.length = 0;
     this.rebuildGeneration = 0;
     this.lastRebuiltAt = undefined;

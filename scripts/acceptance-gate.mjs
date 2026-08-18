@@ -340,6 +340,26 @@ gate(
   })()
 );
 gate(
+  "V3 CONNECTOME PRESENT",
+  (() => {
+    const engine = path.join(root, "packages/harbor/src/connectome-engine.ts");
+    const svc = path.join(root, "packages/harbor/src/service.ts");
+    const test = path.join(root, "tests/unit/harbor-connectome.test.ts");
+    if (!existsSync(engine) || !existsSync(svc) || !existsSync(test)) return false;
+    const src = readFileSync(engine, "utf8");
+    const serviceSrc = readFileSync(svc, "utf8");
+    return (
+      src.includes("harbor-connectome-v1") &&
+      src.includes("CANONICAL_MEMORY") &&
+      src.includes("Never EventStore") &&
+      !src.includes("PostgresEventStore") &&
+      serviceSrc.includes("proposeRelation") &&
+      serviceSrc.includes("commitRelation") &&
+      serviceSrc.includes("connectome(")
+    );
+  })()
+);
+gate(
   "V2 STRUCTURE PRESENT",
   existsSync(path.join(root, "packages/command-adapter/src/index.ts")) &&
     existsSync(path.join(root, "packages/command-adapter/src/core-runtime.ts")) &&
@@ -482,7 +502,7 @@ let unitOk = false;
 let unitDetail = "";
 try {
   const out = runVitest(
-    "--exclude tests/integration/live-postgres-memory.test.ts --exclude tests/integration/desktop-command-path.test.ts --exclude tests/integration/desktop-bridge-http.test.ts --exclude tests/integration/memory-foundation-gate.test.ts --exclude tests/integration/memory-query-read-model-gate.test.ts --exclude tests/integration/desktop-memory-e2e-gate.test.ts --exclude tests/integration/memory-retrieval-context-gate.test.ts --exclude tests/integration/continuity-foundation-gate.test.ts --exclude tests/integration/cultivation-foundation-gate.test.ts --exclude tests/integration/desktop-co-creation-surface-gate.test.ts --exclude tests/integration/v3-full-acceptance-gate.test.ts"
+    "--exclude tests/integration/live-postgres-memory.test.ts --exclude tests/integration/desktop-command-path.test.ts --exclude tests/integration/desktop-bridge-http.test.ts --exclude tests/integration/memory-foundation-gate.test.ts --exclude tests/integration/memory-query-read-model-gate.test.ts --exclude tests/integration/desktop-memory-e2e-gate.test.ts --exclude tests/integration/memory-retrieval-context-gate.test.ts --exclude tests/integration/continuity-foundation-gate.test.ts --exclude tests/integration/cultivation-foundation-gate.test.ts --exclude tests/integration/desktop-co-creation-surface-gate.test.ts --exclude tests/integration/v3-full-acceptance-gate.test.ts --exclude tests/integration/v3-connectome-gate.test.ts"
   );
   unitOk = true;
   unitDetail = out.split("\n").filter((l) => l.includes("Tests")).pop() ?? "ok";
@@ -847,6 +867,31 @@ gate(
   integrityDetail.trim().slice(0, 240)
 );
 
+let connectomeOk = false;
+let connectomeDetail = "";
+try {
+  const out = runVitest("tests/unit/harbor-connectome.test.ts tests/integration/v3-connectome-gate.test.ts");
+  connectomeOk = true;
+  connectomeDetail =
+    out.split("\n").filter((l) => l.includes("Tests")).pop() ?? "ok";
+  console.log(out);
+} catch (e) {
+  connectomeOk = false;
+  connectomeDetail = (
+    e.stdout?.toString?.() ||
+    e.stderr?.toString?.() ||
+    e.message ||
+    ""
+  ).slice(0, 1200);
+  writeGateFailureLog("V3 CONNECTOME GATE", e);
+  console.error(e.stdout?.toString?.() || e.stderr?.toString?.() || e.message);
+}
+gate(
+  "V3 CONNECTOME GATE",
+  connectomeOk,
+  connectomeDetail.trim().slice(0, 240)
+);
+
 const failed = gates.filter((g) => !g.ok);
 const softLive = new Set([
   "LIVE POSTGRES + CORE EVENTSTORE",
@@ -871,6 +916,7 @@ const softLive = new Set([
   "CULTIVATION FOUNDATION GATE",
   "DESKTOP CO-CREATION SURFACE GATE",
   "V3 FULL ACCEPTANCE GATE",
+  "V3 CONNECTOME GATE",
 ]);
 const hardFailed = failed.filter((g) => !softLive.has(g.name));
 
@@ -879,7 +925,7 @@ let exitCode;
 if (hardFailed.length > 0) {
   status = "BLOCKED";
   exitCode = 1;
-} else if (!liveTestOk || !desktopOk || !bridgeOk || !foundationOk || !queryOk || !e2eOk || !retrievalOk || !continuityOk || !cultivationOk || !dcsOk || !integrityOk) {
+} else if (!liveTestOk || !desktopOk || !bridgeOk || !foundationOk || !queryOk || !e2eOk || !retrievalOk || !continuityOk || !cultivationOk || !dcsOk || !integrityOk || !connectomeOk) {
   status = "VERIFICATION PENDING";
   exitCode = 2;
 } else if (failed.length === 0) {
@@ -904,6 +950,7 @@ console.log(`CONTINUITY GATE: ${continuityOk ? "PASS" : "FAIL"}`);
 console.log(`CULTIVATION GATE: ${cultivationOk ? "PASS" : "FAIL"}`);
 console.log(`DESKTOP CO-CREATION GATE: ${dcsOk ? "PASS" : "FAIL"}`);
 console.log(`FULL ACCEPTANCE GATE: ${integrityOk ? "PASS" : "FAIL"}`);
+console.log(`CONNECTOME GATE: ${connectomeOk ? "PASS" : "FAIL"}`);
 console.log(`READ MODEL GATE: ${queryOk ? "PASS" : "FAIL"}`);
 console.log(`REPLAY GATE: ${queryOk ? "PASS" : "FAIL"}`);
 console.log(`PHASE 08 CODE PRESENT: NO`);

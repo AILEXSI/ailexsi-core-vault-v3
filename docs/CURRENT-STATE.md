@@ -18,7 +18,9 @@ See `git rev-parse HEAD`. Last Harbor slice commit is on `main`.
 | Context assembly | `bcf6a82b8a932e551b5ac214985b643924ea6edb` | deterministic ContextPackage |
 | Observed reflection | `5d5b112be9bf16d5657d72c522e98931d35fdc6a` | deterministic OBSERVED reflections |
 | Cultivation proposals | `6804c377acc15fdd52ae47f4b13704c0891ea77c` | deterministic cultivation proposals |
-| This worktree | `git rev-parse HEAD` | explicit agency / permission boundary |
+| Agency boundary | `d7aa20e201908dabb561c327dc4de200857d0765` | explicit agency / permission boundary |
+| Agency evidence | `7bf0c115b1fce501f24b0b8b2266a081655c0819` | acceptance + verify:live for d7aa20e |
+| This worktree | `git rev-parse HEAD` | product version consistency |
 
 ## LATEST GREEN TAG
 
@@ -52,6 +54,7 @@ No new V3 GREEN tag is minted until a dedicated freeze is authorized.
 - CLEAR DERIVED → REPLAY CANONICAL → REBUILD is deterministic; corrupt/missing/interrupted/schema-mismatch are known states
 - Deterministic derived query service (READ-ONLY): get/list/source/status/contradictions/provenance + pagination
 - Agentic failure tests (blocked unauthorized write, flagged contradiction, required-test inventory)
+- Product version source of truth (`config/version.json` = `0.1.0`); npm / Tauri / Cargo / Harbor / evidence `v3Version` must match. Bootstrap tag `v3.0.0-v2-baseline` is not the product version. Inherited `@ailexsi/v2-*` names are module history, not a second version.
 - Desktop nav: Home/Harbor, Memory, Context, Reflection, Cultivation, Connectome, Continuity, Evidence, Settings
 
 ## PARTIAL
@@ -75,6 +78,7 @@ No new V3 GREEN tag is minted until a dedicated freeze is authorized.
 - `tsc -b` still reports pre-existing desktop/JSX project issues; Vitest is the executable suite
 - Import WRITE is derived-only; it never creates Core Memory cells
 - Preference contradiction heuristic is literal (`user prefers X`)
+- Desktop bundle identifier (`com.ailexsi.core-vault-v2`) and Cargo crate name still say v2 (inherited identity, not product version)
 
 ## NEXT BUILD SLICE
 

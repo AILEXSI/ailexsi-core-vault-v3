@@ -1,0 +1,14 @@
+{
+  "product": "AILEXSI Core Vault V3",
+  "repository": "AILEXSI/ailexsi-core-vault-v3",
+  "version": "0.1.0",
+  "class": "V3",
+  "bootstrapTag": "v3.0.0-v2-baseline",
+  "bootstrapTagIsNotProductVersion": true,
+  "notes": [
+    "This file is the product-version source of truth.",
+    "npm / Tauri / Cargo / Harbor HARBOR_VERSION / evidence v3Version must match `version`.",
+    "The bootstrap tag name is historical identity, not the product version.",
+    "@ailexsi/v2-* package names are inherited V2 module names living inside V3. They are not a second product version."
+  ]
+}

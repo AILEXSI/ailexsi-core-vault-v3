@@ -2,7 +2,7 @@
 
 This repository is **AILEXSI Core Vault V3**.
 
-It is the successor of the verified **V2** baseline (`AILEXSI/ailexsi-core-vault-v2` @ `d684aa4a3c292c1d1f1587a68371589437b68055`). This bootstrap does not add V3 features.
+It is the successor of the verified **V2** baseline (`AILEXSI/ailexsi-core-vault-v2` @ `d684aa4a3c292c1d1f1587a68371589437b68055`). Product version is declared in [`config/version.json`](config/version.json). The bootstrap tag `v3.0.0-v2-baseline` is historical identity, not that product version.
 
 It uses **AILEXSI Core** as the canonical Cortex foundation.
 

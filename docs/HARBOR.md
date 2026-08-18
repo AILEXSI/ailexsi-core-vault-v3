@@ -1,7 +1,8 @@
 # V3 Cognitive Harbor
 
 **Class:** V3-DERIVED  
-**Canonical authority:** AILEXSI Core (unchanged)
+**Canonical authority:** AILEXSI Core (unchanged)  
+**Product version:** `HARBOR_VERSION` must match `config/version.json` (not the bootstrap tag).
 
 Harbor is the user-facing cognitive infrastructure around Core Memory.
 

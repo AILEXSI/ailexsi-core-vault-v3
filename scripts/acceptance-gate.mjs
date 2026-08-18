@@ -289,6 +289,34 @@ gate(
   })()
 );
 gate(
+  "VERSION CONSISTENCY PRESENT",
+  (() => {
+    const verPath = path.join(root, "config/version.json");
+    const rootPkgPath = path.join(root, "package.json");
+    const harborTypes = path.join(root, "packages/harbor/src/types.ts");
+    const tauri = path.join(root, "apps/desktop/src-tauri/tauri.conf.json");
+    const cargo = path.join(root, "apps/desktop/src-tauri/Cargo.toml");
+    if (![verPath, rootPkgPath, harborTypes, tauri, cargo].every((p) => existsSync(p))) {
+      return false;
+    }
+    const declared = JSON.parse(readFileSync(verPath, "utf8"));
+    const rootPkg = JSON.parse(readFileSync(rootPkgPath, "utf8"));
+    const tauriCfg = JSON.parse(readFileSync(tauri, "utf8"));
+    const cargoText = readFileSync(cargo, "utf8");
+    const harborText = readFileSync(harborTypes, "utf8");
+    const cargoVer = cargoText.match(/^version\s*=\s*"([^"]+)"/m);
+    return (
+      declared.product === "AILEXSI Core Vault V3" &&
+      declared.version === rootPkg.version &&
+      declared.version === tauriCfg.version &&
+      cargoVer?.[1] === declared.version &&
+      harborText.includes(`export const HARBOR_VERSION = "${declared.version}"`) &&
+      declared.bootstrapTagIsNotProductVersion === true &&
+      existsSync(path.join(root, "tests/unit/version-consistency.test.ts"))
+    );
+  })()
+);
+gate(
   "V2 STRUCTURE PRESENT",
   existsSync(path.join(root, "packages/command-adapter/src/index.ts")) &&
     existsSync(path.join(root, "packages/command-adapter/src/core-runtime.ts")) &&

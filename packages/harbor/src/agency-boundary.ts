@@ -26,9 +26,11 @@ import {
 } from "./agency.js";
 import { DurableGrantRegistry, getDefaultGrantRegistry } from "./grant-registry.js";
 import {
-  clearMutationContext,
-  installMutationContext,
+  createBoundMutationContext,
+  invalidateBoundMutationContext,
+  type AuthorizedMutationContext,
 } from "./mutation-context.js";
+import { boundSessionActor } from "./session-bind.js";
 import type { Capability, HarborActor } from "./types.js";
 
 export interface CanonicalCommitRequest<T> {
@@ -36,7 +38,9 @@ export interface CanonicalCommitRequest<T> {
   grant: AuthorizationGrant;
   action: string;
   target: string;
-  execute: () => Promise<{ result: T; eventIds: string[] }> | { result: T; eventIds: string[] };
+  execute: (
+    ctx: AuthorizedMutationContext
+  ) => Promise<{ result: T; eventIds: string[] }> | { result: T; eventIds: string[] };
   now?: string;
 }
 
@@ -62,7 +66,24 @@ export class AgencyBoundary {
   }
 
   issueAuthorization(granter: HarborActor, spec: IssueAuthorizationSpec): AuthorizationGrant {
-    return issueAuthorizationOn(this.registry, granter, spec);
+    const session = boundSessionActor(this);
+    if (!session) {
+      throw new AgencyDeniedError(
+        granter,
+        spec.capability,
+        "No Session Actor — grant issuance fails closed",
+        { code: "HUMAN_AUTHORIZATION_REQUIRED", action: spec.action, target: spec.target }
+      );
+    }
+    if (session.id !== granter.id || session.kind !== granter.kind) {
+      throw new AgencyDeniedError(
+        granter,
+        spec.capability,
+        "Grant issuance requires the DesktopHost Session Actor",
+        { code: "GRANT_SUBJECT_MISMATCH", action: spec.action, target: spec.target }
+      );
+    }
+    return issueAuthorizationOn(this.registry, session, spec);
   }
 
   isIssuedGrant(grant: AuthorizationGrant): boolean {
@@ -113,17 +134,12 @@ export class AgencyBoundary {
     const actor = sealActor(request.actor);
     this.require(actor, "CANONICAL_COMMIT", request.action, request.target);
     this.requireGrant(actor, request.grant, "CANONICAL_COMMIT", request.action, request.target);
-    installMutationContext({
-      actor,
-      grant: request.grant,
-      action: request.action,
-      target: request.target,
-    });
+    const ctx = createBoundMutationContext(actor, request.grant, request.action, request.target);
     let executed: { result: T; eventIds: string[] };
     try {
-      executed = await request.execute();
+      executed = await request.execute(ctx);
     } finally {
-      clearMutationContext();
+      invalidateBoundMutationContext(ctx);
     }
     markGrantConsumed(request.grant, this.registry);
     const record = buildCanonicalActionRecord({

@@ -31,12 +31,14 @@ import {
   AgencyDeniedError,
   HarborService,
   sealActor,
+  type AuthorizedMutationContext,
   type ContextAssemblyInput,
   type ContradictionResolution,
   type EpistemicStatus,
   type HarborActor,
   type HarborExportPackage,
 } from "@ailexsi/v3-harbor";
+import { bindAgencySessionActor } from "../../harbor/src/session-bind.js";
 
 export type DesktopMemoryCommand =
   | "memory.create"
@@ -147,6 +149,9 @@ export class DesktopHost {
     if (options.actor && !this.sessionActor) {
       this.sessionActor = sealActor(options.actor);
     }
+    if (this.sessionActor) {
+      bindAgencySessionActor(this.harbor.agency, this.sessionActor);
+    }
     this.startGeneration += 1;
   }
 
@@ -161,6 +166,9 @@ export class DesktopHost {
       );
     }
     this.sessionActor = sealActor(actor);
+    if (this.harbor) {
+      bindAgencySessionActor(this.harbor.agency, this.sessionActor);
+    }
   }
 
   /** Session Actor for this host. Null when none is attached. */
@@ -231,16 +239,22 @@ export class DesktopHost {
       idempotencyKey?: string;
     }
   ): Promise<MemoryDetailView> {
+    const actor = this.requireSessionActor();
+    if (actor.kind !== "human") {
+      throw new AgencyDeniedError(actor, "CANONICAL_COMMIT", "AI session cannot issueAuthorization", {
+        code: "HUMAN_AUTHORIZATION_REQUIRED",
+        action: "memory.create",
+      });
+    }
     const rt = this.requireRuntime();
     this.commandCount += 1;
-    const actor = this.requireSessionActor();
     const key = cmd.idempotencyKey ?? randomUUID();
-    const cell = await this.commitThroughAgency(actor, "memory.create", key, async () => {
+    const cell = await this.commitThroughAgency(actor, "memory.create", key, async (ctx) => {
       const created = await rt.adapter.create({
         ...cmd,
         idempotencyKey: key,
         createdBy: actor.id,
-      });
+      }, ctx);
       const stream = await rt.store.getByAggregate(created.identity.id);
       return { result: created, eventIds: stream.map((e) => e.event.eventId) };
     });
@@ -266,12 +280,12 @@ export class DesktopHost {
     this.commandCount += 1;
     const actor = this.requireSessionActor();
     const key = cmd.idempotencyKey ?? randomUUID();
-    const cell = await this.commitThroughAgency(actor, "memory.update", String(cmd.memoryId), async () => {
+    const cell = await this.commitThroughAgency(actor, "memory.update", String(cmd.memoryId), async (ctx) => {
       const updated = await rt.adapter.update({
         ...cmd,
         idempotencyKey: key,
         createdBy: actor.id,
-      });
+      }, ctx);
       const stream = await rt.store.getByAggregate(updated.identity.id);
       return { result: updated, eventIds: stream.map((e) => e.event.eventId) };
     });
@@ -291,12 +305,12 @@ export class DesktopHost {
     this.commandCount += 1;
     const actor = this.requireSessionActor();
     const key = cmd.idempotencyKey ?? randomUUID();
-    const cell = await this.commitThroughAgency(actor, "memory.archive", String(cmd.memoryId), async () => {
+    const cell = await this.commitThroughAgency(actor, "memory.archive", String(cmd.memoryId), async (ctx) => {
       const archived = await rt.adapter.archive({
         ...cmd,
         idempotencyKey: key,
         createdBy: actor.id,
-      });
+      }, ctx);
       const stream = await rt.store.getByAggregate(archived.identity.id);
       return { result: archived, eventIds: stream.map((e) => e.event.eventId) };
     });
@@ -316,12 +330,12 @@ export class DesktopHost {
     this.commandCount += 1;
     const actor = this.requireSessionActor();
     const key = cmd.idempotencyKey ?? randomUUID();
-    const cell = await this.commitThroughAgency(actor, "memory.restore", String(cmd.memoryId), async () => {
+    const cell = await this.commitThroughAgency(actor, "memory.restore", String(cmd.memoryId), async (ctx) => {
       const restored = await rt.adapter.restore({
         ...cmd,
         idempotencyKey: key,
         createdBy: actor.id,
-      });
+      }, ctx);
       const stream = await rt.store.getByAggregate(restored.identity.id);
       return { result: restored, eventIds: stream.map((e) => e.event.eventId) };
     });
@@ -465,7 +479,7 @@ export class DesktopHost {
     const rt = this.requireRuntime();
     this.commandCount += 1;
     const proposalId = String(args.proposalId ?? "");
-    return this.commitThroughAgency(actor, "cultivation.accept", proposalId, async () => {
+    return this.commitThroughAgency(actor, "cultivation.accept", proposalId, async (ctx) => {
       const { proposal, draft } = this.requireCultivation().acceptCanonical(
         String(args.sessionId ?? ""),
         proposalId,
@@ -484,13 +498,13 @@ export class DesktopHost {
               provenance: draft.provenance,
               idempotencyKey: draft.idempotencyKey,
               createdBy: actor.id,
-            })
+            }, ctx)
           : await rt.adapter.create({
               content: draft.content,
               provenance: draft.provenance,
               idempotencyKey: draft.idempotencyKey,
               createdBy: actor.id,
-            });
+            }, ctx);
       proposal.acceptedMemoryId = cell.identity.id;
       const stream = await rt.store.getByAggregate(cell.identity.id);
       return { result: { proposal, cell }, eventIds: stream.map((e) => e.event.eventId) };
@@ -610,7 +624,7 @@ export class DesktopHost {
     actor: HarborActor,
     action: string,
     target: string,
-    execute: () => Promise<{ result: T; eventIds: string[] }>
+    execute: (ctx: AuthorizedMutationContext) => Promise<{ result: T; eventIds: string[] }>
   ): Promise<T> {
     const harbor = this.requireHarbor();
     const grant = harbor.agency.issueAuthorization(actor, {

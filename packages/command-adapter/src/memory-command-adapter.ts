@@ -13,12 +13,8 @@
 import type { MemoryCell, MemoryContent, MemoryVersion, UUID } from "@ailexsi/contracts";
 import type { EventStore } from "@ailexsi/eventstore";
 import { MemoryDomain } from "@ailexsi/memory";
-import {
-  AgencyDeniedError,
-  consumeMutationContext,
-  currentMutationContext,
-  type AuthorizedMutationContext,
-} from "@ailexsi/v3-harbor";
+import { AgencyDeniedError, type AuthorizedMutationContext } from "@ailexsi/v3-harbor";
+import { consumeBoundMutationContext } from "../../harbor/src/mutation-context.js";
 import type {
   V2CreateMemoryCommand,
   V2UpdateMemoryCommand,
@@ -55,16 +51,15 @@ function denyWrite(
   );
 }
 
-function requireContext(action: string): AuthorizedMutationContext {
-  const ctx = currentMutationContext();
-  if (!ctx) {
-    denyWrite(
-      null,
-      action,
-      "Core Adapter Gate: no Authorized Mutation Context — EventStore write rejected"
-    );
+function requireContext(ctx: unknown, action: string): AuthorizedMutationContext {
+  try {
+    return consumeBoundMutationContext(ctx);
+  } catch (err) {
+    if (err instanceof AgencyDeniedError) {
+      denyWrite(null, action, err.message);
+    }
+    throw err;
   }
-  return ctx;
 }
 
 /** JSON / ambient fields are not an Authorized Mutation Context. */
@@ -75,7 +70,7 @@ function rejectForgedContext(cmd: object, action: string): void {
     nested !== null && typeof nested === "object" && (nested as { authorized?: unknown }).authorized === true;
   if (rec.authorized === true || rec.source === "agency" || rec.grantId != null || nestedAuth) {
     denyWrite(
-      currentMutationContext(),
+      null,
       action,
       "Core Adapter Gate: {authorized:true} / {source:agency} / grantId is not an Authorized Mutation Context"
     );
@@ -94,10 +89,10 @@ export class MemoryCommandAdapter {
     );
   }
 
-  async create(cmd: V2CreateMemoryCommand): Promise<MemoryCell> {
+  async create(cmd: V2CreateMemoryCommand, mutation?: AuthorizedMutationContext): Promise<MemoryCell> {
     rejectForgedContext(cmd, "adapter.create");
     validateCreateMemory(cmd);
-    const ctx = requireContext("adapter.create");
+    const ctx = requireContext(mutation, "adapter.create");
     if (isConnectomeRelationKind(cmd.content)) {
       if (ctx.action !== "relation.commit") {
         denyWrite(
@@ -106,7 +101,7 @@ export class MemoryCommandAdapter {
           "Connectome relation cells may only be written via commitRelation"
         );
       }
-      await this.assertRelationEvidence(cmd.content);
+      await this.assertRelationEvidence(cmd.content, ctx);
     }
     const cell = await this.#domain.create({
       content: cmd.content,
@@ -121,7 +116,6 @@ export class MemoryCommandAdapter {
       createdBy: cmd.createdBy ?? "v2",
       memoryId: cmd.memoryId,
     });
-    consumeMutationContext();
     return cell;
   }
 
@@ -129,10 +123,10 @@ export class MemoryCommandAdapter {
     return this.#domain.get(memoryId);
   }
 
-  async update(cmd: V2UpdateMemoryCommand): Promise<MemoryCell> {
+  async update(cmd: V2UpdateMemoryCommand, mutation?: AuthorizedMutationContext): Promise<MemoryCell> {
     rejectForgedContext(cmd, "adapter.update");
     validateUpdateMemory(cmd);
-    const ctx = requireContext("adapter.update");
+    const ctx = requireContext(mutation, "adapter.update");
     if (isConnectomeRelationKind(cmd.content)) {
       if (ctx.action !== "relation.commit") {
         denyWrite(
@@ -141,7 +135,7 @@ export class MemoryCommandAdapter {
           "Connectome relation cells may only be written via commitRelation"
         );
       }
-      await this.assertRelationEvidence(cmd.content);
+      await this.assertRelationEvidence(cmd.content, ctx);
     }
     const cell = await this.#domain.update(cmd.memoryId, {
       content: cmd.content,
@@ -155,13 +149,12 @@ export class MemoryCommandAdapter {
       causationId: cmd.causationId,
       createdBy: cmd.createdBy ?? "v2",
     });
-    consumeMutationContext();
     return cell;
   }
 
-  async archive(cmd: V2LifecycleCommand): Promise<MemoryCell> {
+  async archive(cmd: V2LifecycleCommand, mutation?: AuthorizedMutationContext): Promise<MemoryCell> {
     validateLifecycle(cmd);
-    requireContext("adapter.archive");
+    requireContext(mutation, "adapter.archive");
     const cell = await this.#domain.archive(cmd.memoryId, {
       reason: cmd.reason,
       idempotencyKey: cmd.idempotencyKey,
@@ -169,13 +162,12 @@ export class MemoryCommandAdapter {
       causationId: cmd.causationId,
       createdBy: cmd.createdBy ?? "v2",
     });
-    consumeMutationContext();
     return cell;
   }
 
-  async restore(cmd: V2LifecycleCommand): Promise<MemoryCell> {
+  async restore(cmd: V2LifecycleCommand, mutation?: AuthorizedMutationContext): Promise<MemoryCell> {
     validateLifecycle(cmd);
-    requireContext("adapter.restore");
+    requireContext(mutation, "adapter.restore");
     const cell = await this.#domain.restore(cmd.memoryId, {
       reason: cmd.reason,
       idempotencyKey: cmd.idempotencyKey,
@@ -183,7 +175,6 @@ export class MemoryCommandAdapter {
       causationId: cmd.causationId,
       createdBy: cmd.createdBy ?? "v2",
     });
-    consumeMutationContext();
     return cell;
   }
 
@@ -206,9 +197,12 @@ export class MemoryCommandAdapter {
    * Evidence must include at least one existing Core Memory id that is not from/to.
    * Existence of from/to is not proof. Do not treat citations as grants.
    */
-  private async assertRelationEvidence(content: MemoryContent): Promise<void> {
+  private async assertRelationEvidence(
+    content: MemoryContent,
+    ctx: AuthorizedMutationContext
+  ): Promise<void> {
     if (content.type !== "structured") {
-      denyWrite(currentMutationContext(), "relation.commit", "Relation cell must be structured");
+      denyWrite(ctx, "relation.commit", "Relation cell must be structured");
     }
     const data = content.structuredData as {
       from?: string;
@@ -221,7 +215,7 @@ export class MemoryCommandAdapter {
     const thirdParty = evidence.filter((id) => id && id !== from && id !== to);
     if (thirdParty.length === 0) {
       denyWrite(
-        currentMutationContext(),
+        ctx,
         "relation.commit",
         "Relation evidence must include an existing Core Memory id that is not from/to"
       );
@@ -230,7 +224,7 @@ export class MemoryCommandAdapter {
       const cell = await this.#domain.get(id as UUID);
       if (!cell) {
         denyWrite(
-          currentMutationContext(),
+          ctx,
           "relation.commit",
           `Relation evidence ${id} is not a retrievable Core Memory`
         );

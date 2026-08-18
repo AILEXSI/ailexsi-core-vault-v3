@@ -6,8 +6,8 @@ import type { Provenance } from "@ailexsi/contracts";
 import {
   AgencyDeniedError,
   HarborService,
-  issueAuthorization,
 } from "@ailexsi/v3-harbor";
+import { issueTestAuthorization } from "@ailexsi/v2-test-kit";
 
 const HUMAN = { id: "martin", kind: "human" as const, authorizeCanonical: true };
 const AI = { id: "grok", kind: "ai" as const };
@@ -56,7 +56,7 @@ describe("Agency proposal persist", () => {
     const proposal = await harbor.propose(AI, { text: "remember tea", sourceMemoryIds: [] }, NOW);
     const events = store.count();
     let executed = false;
-    const grant = issueAuthorization(HUMAN, {
+    const grant = issueTestAuthorization(HUMAN, {
       grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "proposal.commit",
@@ -70,13 +70,13 @@ describe("Agency proposal persist", () => {
         grant,
         action: "proposal.commit",
         target: proposal.proposalId,
-        execute: async () => {
+        execute: async (ctx) => {
           executed = true;
           const cell = await adapter.create({
             content: { type: "text", text: "should not write" },
             provenance: provenance(),
             idempotencyKey: randomUUID(),
-          });
+          }, ctx);
           return { result: cell, eventIds: [] };
         },
       })
@@ -94,7 +94,7 @@ describe("Agency proposal persist", () => {
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
     const proposal = await harbor.propose(AI, { text: "remember tea", sourceMemoryIds: [] }, NOW);
     harbor.decideProposal(proposal.proposalId, "ACCEPTED", HUMAN, { now: NOW });
-    const grant = issueAuthorization(HUMAN, {
+    const grant = issueTestAuthorization(HUMAN, {
       grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "proposal.commit",
@@ -108,13 +108,13 @@ describe("Agency proposal persist", () => {
       action: "proposal.commit",
       target: proposal.proposalId,
       now: NOW,
-      execute: async () => {
+      execute: async (ctx) => {
         const cell = await adapter.create({
           content: { type: "text", text: proposal.content },
           provenance: provenance(),
           idempotencyKey: randomUUID(),
           createdBy: HUMAN.id,
-        });
+        }, ctx);
         return { result: cell, eventIds: store.all().map((e) => e.event.eventId) };
       },
     });
@@ -137,7 +137,7 @@ describe("Agency proposal persist", () => {
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
     const proposal = await harbor.propose(AI, { text: "remember tea", sourceMemoryIds: [] }, NOW);
     harbor.decideProposal(proposal.proposalId, "ACCEPTED", HUMAN, { now: NOW });
-    const grant = issueAuthorization(HUMAN, {
+    const grant = issueTestAuthorization(HUMAN, {
       grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "proposal.commit",
@@ -152,12 +152,12 @@ describe("Agency proposal persist", () => {
         grant,
         action: "proposal.commit",
         target: proposal.proposalId,
-        execute: async () => {
+        execute: async (ctx) => {
           await adapter.create({
             content: { type: "text", text: "ai write" },
             provenance: provenance(),
             idempotencyKey: randomUUID(),
-          });
+          }, ctx);
           return { result: null, eventIds: [] };
         },
       })

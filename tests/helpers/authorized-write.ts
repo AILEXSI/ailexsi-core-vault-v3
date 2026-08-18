@@ -10,20 +10,14 @@ import type {
   V2LifecycleCommand,
   V2UpdateMemoryCommand,
 } from "@ailexsi/v2-command-adapter";
+import { issueTestAuthorization } from "@ailexsi/v2-test-kit";
 import {
   HarborService,
-  issueAuthorization,
+  type AuthorizedMutationContext,
   type HarborActor,
 } from "@ailexsi/v3-harbor";
 
 const CORE_PIN = "652d01eb06dd0841c3b475023883675af6dcd698";
-
-export const TEST_SESSION_ACTOR: HarborActor = {
-  id: "desktop-user",
-  kind: "human",
-  authorizeCanonical: true,
-  authorizeExternal: true,
-};
 
 export const TEST_CHANNEL_TOKEN = "test-channel-token";
 
@@ -34,15 +28,22 @@ export const TEST_HUMAN: HarborActor = {
   authorizeExternal: true,
 };
 
+export const TEST_SESSION_ACTOR: HarborActor = {
+  id: "desktop-user",
+  kind: "human",
+  authorizeCanonical: true,
+  authorizeExternal: true,
+};
+
 export async function viaCanonicalCommit<T>(
-  execute: () => Promise<T>,
+  execute: (ctx: AuthorizedMutationContext) => Promise<T>,
   opts?: { actor?: HarborActor; action?: string; target?: string }
 ): Promise<T> {
   const actor = opts?.actor ?? TEST_HUMAN;
   const action = opts?.action ?? "memory.create";
   const target = opts?.target ?? `seed:${randomUUID()}`;
   const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "test" });
-  const grant = issueAuthorization(actor, {
+  const grant = issueTestAuthorization(actor, {
     grantedTo: { id: actor.id, kind: actor.kind },
     capability: "CANONICAL_COMMIT",
     action,
@@ -53,8 +54,8 @@ export async function viaCanonicalCommit<T>(
     grant,
     action,
     target,
-    execute: async () => {
-      const result = await execute();
+    execute: async (ctx) => {
+      const result = await execute(ctx);
       return { result, eventIds: [] };
     },
   });
@@ -65,7 +66,7 @@ export async function authorizedCreate(
   adapter: MemoryCommandAdapter,
   cmd: V2CreateMemoryCommand
 ): Promise<MemoryCell> {
-  return viaCanonicalCommit(() => adapter.create(cmd), {
+  return viaCanonicalCommit((ctx) => adapter.create(cmd, ctx), {
     action: "memory.create",
     target: cmd.idempotencyKey,
   });
@@ -75,7 +76,7 @@ export async function authorizedUpdate(
   adapter: MemoryCommandAdapter,
   cmd: V2UpdateMemoryCommand
 ): Promise<MemoryCell> {
-  return viaCanonicalCommit(() => adapter.update(cmd), {
+  return viaCanonicalCommit((ctx) => adapter.update(cmd, ctx), {
     action: "memory.update",
     target: String(cmd.memoryId),
   });
@@ -85,7 +86,7 @@ export async function authorizedArchive(
   adapter: MemoryCommandAdapter,
   cmd: V2LifecycleCommand
 ): Promise<MemoryCell> {
-  return viaCanonicalCommit(() => adapter.archive(cmd), {
+  return viaCanonicalCommit((ctx) => adapter.archive(cmd, ctx), {
     action: "memory.archive",
     target: String(cmd.memoryId),
   });
@@ -95,7 +96,7 @@ export async function authorizedRestore(
   adapter: MemoryCommandAdapter,
   cmd: V2LifecycleCommand
 ): Promise<MemoryCell> {
-  return viaCanonicalCommit(() => adapter.restore(cmd), {
+  return viaCanonicalCommit((ctx) => adapter.restore(cmd, ctx), {
     action: "memory.restore",
     target: String(cmd.memoryId),
   });

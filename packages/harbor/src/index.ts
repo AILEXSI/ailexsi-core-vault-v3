@@ -1,13 +1,31 @@
 export * from "./types.js";
 export * from "./epistemic.js";
 export * from "./grant-registry.js";
-export * from "./agency.js";
-export * from "./agency-boundary.js";
 export {
-  currentMutationContext,
-  consumeMutationContext,
-  type AuthorizedMutationContext,
-} from "./mutation-context.js";
+  AgencyDeniedError,
+  normalizeCapability,
+  sealActor,
+  capabilitiesFor,
+  hasCapability,
+  assertCapability,
+  evaluateAccess,
+  issueAuthority,
+  isIssuedGrant,
+  isConsumedGrant,
+  markGrantConsumed,
+  issuedGrantCount,
+  isAuditableAction,
+  buildCanonicalActionRecord,
+  type DenialCode,
+  type AgencyDenial,
+  type AgencyAuthority,
+  type AuthorizationGrant,
+  type CanonicalActionRecord,
+  type IssueAuthorizationSpec,
+  type AgencyDeniedFields,
+} from "./agency.js";
+export * from "./agency-boundary.js";
+export type { AuthorizedMutationContext } from "./mutation-context.js";
 export * from "./contradiction.js";
 export * from "./temporal.js";
 export * from "./context-assembly.js";

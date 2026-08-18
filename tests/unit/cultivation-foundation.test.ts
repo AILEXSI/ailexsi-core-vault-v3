@@ -58,12 +58,12 @@ describe("Cultivation Foundation unit", () => {
       idempotencyKey: randomUUID(),
     });
     await viaCanonicalCommit(
-      () =>
+      (ctx) =>
         adapter.create({
           content: draft.content,
           provenance: draft.provenance,
           idempotencyKey: draft.idempotencyKey,
-        }),
+        }, ctx),
       { action: "memory.create", target: proposal.id }
     );
     const afterFirst = store.count();
@@ -88,14 +88,14 @@ describe("Cultivation Foundation unit", () => {
       idempotencyKey: randomUUID(),
     });
     const cell = await viaCanonicalCommit(
-      () =>
+      (ctx) =>
         adapter.update({
           memoryId: draft.memoryId!,
           content: draft.content,
           provenance: draft.provenance,
           changeReason: draft.changeReason,
           idempotencyKey: draft.idempotencyKey,
-        }),
+        }, ctx),
       { action: "memory.update", target: proposal.id }
     );
     expect(cell.identity.id).toBe(existing.identity.id);

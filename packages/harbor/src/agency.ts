@@ -341,12 +341,7 @@ export function issueAuthorizationOn(
   return grant;
 }
 
-export function issueAuthorization(
-  granter: HarborActor,
-  spec: IssueAuthorizationSpec
-): AuthorizationGrant {
-  return issueAuthorizationOn(getDefaultGrantRegistry(), granter, spec);
-}
+
 
 /** Whole-record compare against the Durable Grant Registry. Not grantId membership. */
 export function isIssuedGrant(

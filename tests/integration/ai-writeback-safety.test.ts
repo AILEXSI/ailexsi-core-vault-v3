@@ -73,12 +73,12 @@ describe("AI writeback safety", () => {
     });
     expect(store.count()).toBe(seedCount);
     const cell = await viaCanonicalCommit(
-      () =>
+      (ctx) =>
         adapter.create({
           content: draft.content,
           provenance: draft.provenance,
           idempotencyKey: draft.idempotencyKey,
-        }),
+        }, ctx),
       { action: "memory.create", target: proposal.id }
     );
     proposal.acceptedMemoryId = cell.identity.id;
@@ -101,12 +101,12 @@ describe("AI writeback safety", () => {
       idempotencyKey: randomUUID(),
     });
     const cell = await viaCanonicalCommit(
-      () =>
+      (ctx) =>
         adapter.create({
           content: draft.content,
           provenance: draft.provenance,
           idempotencyKey: draft.idempotencyKey,
-        }),
+        }, ctx),
       { action: "memory.create", target: proposal.id }
     );
     expect(cell.content).toEqual({

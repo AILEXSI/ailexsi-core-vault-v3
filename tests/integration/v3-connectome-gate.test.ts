@@ -7,7 +7,8 @@ import { randomUUID } from "node:crypto";
 import { createCoreRuntime, type CoreRuntime } from "@ailexsi/v2-command-adapter";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
 import type { Provenance } from "@ailexsi/contracts";
-import { AgencyDeniedError, HarborService, issueAuthorization, isConnectomeRelationContent } from "@ailexsi/v3-harbor";
+import { AgencyDeniedError, HarborService, isConnectomeRelationContent } from "@ailexsi/v3-harbor";
+import { issueTestAuthorization } from "@ailexsi/v2-test-kit";
 import { authorizedCreate } from "../helpers/authorized-write.js";
 
 const CORE_PIN = "652d01eb06dd0841c3b475023883675af6dcd698";
@@ -85,7 +86,7 @@ describe("V3 CONNECTOME LIVE GATE", () => {
       harbor.commitRelation({
         proposalId: proposal.proposalId,
         actor: AI,
-        grant: issueAuthorization(HUMAN, {
+        grant: issueTestAuthorization(HUMAN, {
           grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
           capability: "CANONICAL_COMMIT",
           action: "relation.commit",
@@ -101,7 +102,7 @@ describe("V3 CONNECTOME LIVE GATE", () => {
     ).rejects.toBeInstanceOf(AgencyDeniedError);
     expect(await runtime.queries.eventCount()).toBe(seed);
 
-    const grant = issueAuthorization(HUMAN, {
+    const grant = issueTestAuthorization(HUMAN, {
       grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "relation.commit",
@@ -115,13 +116,13 @@ describe("V3 CONNECTOME LIVE GATE", () => {
       action: "relation.commit",
       target: proposal.proposalId,
       now: NOW,
-      execute: async () => {
+      execute: async (ctx) => {
         const cell = await runtime!.adapter.create({
           content: harbor.relationContentForCommit(proposal.proposalId, grant.grantId, HUMAN.id),
           provenance: provenance([a.identity.id, b.identity.id]),
           idempotencyKey: randomUUID(),
           createdBy: HUMAN.id,
-        });
+        }, ctx);
         const stream = await runtime!.store.getByAggregate(cell.identity.id);
         return { result: cell, eventIds: stream.map((e) => e.event.eventId) };
       },

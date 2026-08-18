@@ -6,9 +6,9 @@ import type { Provenance } from "@ailexsi/contracts";
 import {
   AgencyDeniedError,
   HarborService,
-  issueAuthorization,
   isConnectomeRelationContent,
 } from "@ailexsi/v3-harbor";
+import { issueTestAuthorization } from "@ailexsi/v2-test-kit";
 import { authorizedCreate } from "../helpers/authorized-write.js";
 
 const HUMAN = { id: "martin", kind: "human" as const, authorizeCanonical: true };
@@ -141,7 +141,7 @@ describe("V3 Connectome", () => {
     }, NOW);
     harbor.decideRelation(proposal.proposalId, "ACCEPTED", HUMAN, NOW);
     const events = store.count();
-    const grant = issueAuthorization(HUMAN, {
+    const grant = issueTestAuthorization(HUMAN, {
       grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "relation.commit",
@@ -156,13 +156,13 @@ describe("V3 Connectome", () => {
         grant,
         action: "relation.commit",
         target: proposal.proposalId,
-        execute: async () => {
+        execute: async (ctx) => {
           executed = true;
           const cell = await adapter.create({
             content: harbor.relationContentForCommit(proposal.proposalId, grant.grantId, HUMAN.id),
             provenance: provenance([parent.identity.id, child.identity.id]),
             idempotencyKey: randomUUID(),
-          });
+          }, ctx);
           return { result: cell, eventIds: [] };
         },
       })
@@ -184,7 +184,7 @@ describe("V3 Connectome", () => {
       evidenceMemoryIds: [witness.identity.id],
     }, NOW);
     harbor.decideRelation(proposal.proposalId, "ACCEPTED", HUMAN, NOW);
-    const grant = issueAuthorization(HUMAN, {
+    const grant = issueTestAuthorization(HUMAN, {
       grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "relation.commit",
@@ -198,13 +198,13 @@ describe("V3 Connectome", () => {
       action: "relation.commit",
       target: proposal.proposalId,
       now: NOW,
-      execute: async () => {
+      execute: async (ctx) => {
         const cell = await adapter.create({
           content: harbor.relationContentForCommit(proposal.proposalId, grant.grantId, HUMAN.id),
           provenance: provenance([parent.identity.id, child.identity.id]),
           idempotencyKey: randomUUID(),
           createdBy: HUMAN.id,
-        });
+        }, ctx);
         return { result: cell, eventIds: store.all().map((e) => e.event.eventId) };
       },
     });
@@ -224,7 +224,7 @@ describe("V3 Connectome", () => {
   it("AI cannot self-authorize a relation grant", () => {
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
     expect(() =>
-      issueAuthorization(AI, {
+      issueTestAuthorization(AI, {
         grantedTo: { id: AI.id, kind: AI.kind },
         capability: "CANONICAL_COMMIT",
         action: "relation.commit",

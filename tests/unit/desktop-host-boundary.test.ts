@@ -25,7 +25,7 @@ describe("DesktopHost boundary (Slice A)", () => {
         },
         idempotencyKey: "k",
       })
-    ).rejects.toThrow(/not started|No silent InMemory/i);
+    ).rejects.toThrow(/not started|No silent InMemory|No session actor/i);
   });
 
   it("createCoreRuntime still refuses missing database URL", async () => {

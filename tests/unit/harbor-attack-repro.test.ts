@@ -9,12 +9,13 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import {
   MemoryCommandAdapter,
-  asProductionStore,
   DesktopHost,
   bridgeCommandStatus,
 } from "@ailexsi/v2-command-adapter";
-import { InMemoryEventStore } from "@ailexsi/v2-test-kit";
+import * as commandAdapter from "@ailexsi/v2-command-adapter";
+import { InMemoryEventStore, issueTestAuthorization } from "@ailexsi/v2-test-kit";
 import { MemoryDomain } from "@ailexsi/memory";
+import * as harborExports from "@ailexsi/v3-harbor";
 import {
   CultivationService,
   MockLlmProvider,
@@ -23,7 +24,6 @@ import type { Provenance } from "@ailexsi/contracts";
 import {
   AgencyDeniedError,
   HarborService,
-  issueAuthorization,
   isIssuedGrant,
 } from "@ailexsi/v3-harbor";
 import { authorizedCreate } from "../helpers/authorized-write.js";
@@ -91,7 +91,7 @@ describe("Harbor attack repros fail closed", () => {
     const store = new InMemoryEventStore();
     const adapter = new MemoryCommandAdapter({ store, environment: "test" });
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
-    const grant = issueAuthorization(MARTIN, {
+    const grant = issueTestAuthorization(MARTIN, {
       grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
       capability: "CANONICAL_COMMIT",
       action: "memory.create",
@@ -104,12 +104,12 @@ describe("Harbor attack repros fail closed", () => {
         grant,
         action: "memory.create",
         target: "x",
-        execute: async () => {
+        execute: async (ctx) => {
           await adapter.create({
             content: { type: "text", text: "lena-using-martin-grant" },
             provenance: provenance(),
             idempotencyKey: randomUUID(),
-          });
+          }, ctx);
           return { result: null, eventIds: [] };
         },
       })
@@ -133,7 +133,7 @@ describe("Harbor attack repros fail closed", () => {
       idempotencyKey: randomUUID(),
     });
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
-    const grant = issueAuthorization(MARTIN, {
+    const grant = issueTestAuthorization(MARTIN, {
       grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
       capability: "CANONICAL_COMMIT",
       action: "memory.create",
@@ -146,7 +146,7 @@ describe("Harbor attack repros fail closed", () => {
         grant,
         action: "memory.create",
         target: "bypass-rel",
-        execute: async () => {
+        execute: async (ctx) => {
           const cell = await adapter.create({
             content: {
               type: "structured",
@@ -161,7 +161,7 @@ describe("Harbor attack repros fail closed", () => {
             },
             provenance: provenance([a.identity.id, b.identity.id]),
             idempotencyKey: randomUUID(),
-          });
+          }, ctx);
           return { result: cell, eventIds: [] };
         },
       })
@@ -213,13 +213,13 @@ describe("Harbor attack repros fail closed", () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), "grant-reg-"));
     try {
       const first = HarborService.open({ corePin: CORE_PIN, vaultReferenceSha: "v", persistDir: dir });
-      const grant = first.agency.issueAuthorization(MARTIN, {
+      const grant = issueTestAuthorization(MARTIN, {
         grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
         capability: "CANONICAL_COMMIT",
         action: "memory.create",
         target: "reg",
         now: NOW,
-      });
+      }, first.agency.registry);
       const issued = first.agency.issuedGrantCount();
       expect(issued).toBe(1);
       expect(first.agency.isIssuedGrant(grant)).toBe(true);
@@ -303,27 +303,36 @@ describe("Harbor attack repros fail closed", () => {
     })).toBe(false);
   });
 
-  it("runtime.store.append from a production-shaped store is not a write path", async () => {
-    const writable = new InMemoryEventStore();
-    const store = asProductionStore(writable);
-    expect(typeof (store as { append?: unknown }).append).toBe("function");
-    await expect(
-      (store as { append: (e: unknown) => Promise<unknown> }).append({
-        event: { eventId: randomUUID() },
-      })
-    ).rejects.toThrow(/TEST_ONLY/);
-    expect(writable.count()).toBe(0);
-    const harbor = await import("@ailexsi/v3-harbor");
-    expect(harbor).not.toHaveProperty("installMutationContext");
-    expect(harbor).not.toHaveProperty("clearMutationContext");
+  it("testOnlyEventStore and asProductionStore are absent from production exports", () => {
+    expect(commandAdapter).not.toHaveProperty("testOnlyEventStore");
+    expect(commandAdapter).not.toHaveProperty("asProductionStore");
+    expect(harborExports).not.toHaveProperty("issueAuthorization");
+    expect(harborExports).not.toHaveProperty("installMutationContext");
+    expect(harborExports).not.toHaveProperty("currentMutationContext");
+    expect(harborExports).not.toHaveProperty("consumeMutationContext");
+  });
+
+  it("production runtime store cannot recover a writer or feed MemoryDomain", async () => {
+    const host = new DesktopHost();
+    expect(() => host.requireRuntime()).toThrow(/not started/);
+    const inner = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store: inner, environment: "test" });
+    expect((adapter as unknown as { domain?: unknown }).domain).toBeUndefined();
+    expect(host).not.toHaveProperty("testOnlyEventStore");
   });
 
   it("MemoryDomain mutation from outside the adapter fails", async () => {
     const writable = new InMemoryEventStore();
     const adapter = new MemoryCommandAdapter({ store: writable, environment: "test" });
     expect((adapter as unknown as { domain?: unknown }).domain).toBeUndefined();
-    const sealed = asProductionStore(writable);
-    const outsider = new MemoryDomain(sealed as never, "outsider", "test");
+    const readOnly = {
+      getCurrentVersion: async () => 0,
+      getByAggregate: async () => [],
+      getStream: async () => [],
+      getByEventId: async () => null,
+      getByIdempotencyKey: async () => null,
+    };
+    const outsider = new MemoryDomain(readOnly as never, "outsider", "test");
     await expect(
       outsider.create({
         content: { type: "text", text: "bypass-domain" },
@@ -353,13 +362,13 @@ describe("Harbor attack repros fail closed", () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), "grant-mut-"));
     try {
       const harbor = HarborService.open({ corePin: CORE_PIN, vaultReferenceSha: "v", persistDir: dir });
-      const grant = harbor.agency.issueAuthorization(MARTIN, {
+      const grant = issueTestAuthorization(MARTIN, {
         grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
         capability: "CANONICAL_COMMIT",
         action: "memory.create",
         target: "original-target",
         now: NOW,
-      });
+      }, harbor.agency.registry);
       const mutated = { ...grant, target: "mutated-target" };
       expect(harbor.agency.isIssuedGrant(mutated)).toBe(false);
       const err = await denialOfAsync(() =>
@@ -414,7 +423,7 @@ describe("Harbor attack repros fail closed", () => {
 
   it("C: martin grant used by lena is GRANT_SUBJECT_MISMATCH", async () => {
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
-    const grant = issueAuthorization(MARTIN, {
+    const grant = issueTestAuthorization(MARTIN, {
       grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
       capability: "CANONICAL_COMMIT",
       action: "memory.create",
@@ -436,7 +445,7 @@ describe("Harbor attack repros fail closed", () => {
   it("D: connectome-relation create outside commitRelation is rejected", async () => {
     const store = new InMemoryEventStore();
     const adapter = new MemoryCommandAdapter({ store, environment: "test" });
-    const grant = issueAuthorization(MARTIN, {
+    const grant = issueTestAuthorization(MARTIN, {
       grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
       capability: "CANONICAL_COMMIT",
       action: "memory.create",
@@ -450,7 +459,7 @@ describe("Harbor attack repros fail closed", () => {
         grant,
         action: "memory.create",
         target: "d-rel",
-        execute: async () => {
+        execute: async (ctx) => {
           await adapter.create({
             content: {
               type: "structured",
@@ -465,7 +474,7 @@ describe("Harbor attack repros fail closed", () => {
             },
             provenance: provenance(),
             idempotencyKey: randomUUID(),
-          });
+          }, ctx);
           return { result: null, eventIds: [] };
         },
       })
@@ -512,13 +521,13 @@ describe("Harbor attack repros fail closed", () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), "grant-f-"));
     try {
       const first = HarborService.open({ corePin: CORE_PIN, vaultReferenceSha: "v", persistDir: dir });
-      const grant = first.agency.issueAuthorization(MARTIN, {
+      const grant = issueTestAuthorization(MARTIN, {
         grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
         capability: "CANONICAL_COMMIT",
         action: "memory.create",
         target: "f-target",
         now: NOW,
-      });
+      }, first.agency.registry);
       const issued = first.agency.issuedGrantCount();
       const reopened = HarborService.open({ corePin: CORE_PIN, vaultReferenceSha: "v", persistDir: dir });
       expect(reopened.agency.issuedGrantCount()).toBe(issued);
@@ -554,26 +563,26 @@ describe("Harbor attack repros fail closed", () => {
       host.attachActor(MARTIN);
       expect(host.getSessionActor()?.id).toBe(MARTIN.id);
       const key = randomUUID();
-      const grant = harbor.agency.issueAuthorization(host.getSessionActor()!, {
+      const grant = issueTestAuthorization(host.getSessionActor()!, {
         grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
         capability: "CANONICAL_COMMIT",
         action: "memory.create",
         target: key,
         now: NOW,
-      });
+      }, harbor.agency.registry);
       const { result, record } = await harbor.commitCanonical({
         actor: host.getSessionActor()!,
         grant,
         action: "memory.create",
         target: key,
         now: NOW,
-        execute: async () => {
+        execute: async (ctx) => {
           const cell = await adapter.create({
             content: { type: "text", text: "canonical session write" },
             provenance: provenance(),
             idempotencyKey: key,
             createdBy: host.getSessionActor()!.id,
-          });
+          }, ctx);
           return { result: cell, eventIds: store.all().map((e) => e.event.eventId) };
         },
       });
@@ -590,5 +599,89 @@ describe("Harbor attack repros fail closed", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("overlapping adapter.create cannot borrow an in-flight authorized context", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const inner = new InMemoryEventStore();
+    let enteredAppend = false;
+    const hanging = {
+      append: async (envelope: Parameters<InMemoryEventStore["append"]>[0]) => {
+        enteredAppend = true;
+        await gate;
+        return inner.append(envelope);
+      },
+      getCurrentVersion: (id: string) => inner.getCurrentVersion(id),
+      getByAggregate: (id: string) => inner.getByAggregate(id),
+      getStream: (opts?: Parameters<InMemoryEventStore["getStream"]>[0]) => inner.getStream(opts),
+      getByEventId: (id: string) => inner.getByEventId(id),
+      getByIdempotencyKey: (key: string) => inner.getByIdempotencyKey(key),
+    };
+    const adapter = new MemoryCommandAdapter({ store: hanging as never, environment: "test" });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const grant = issueTestAuthorization(MARTIN, {
+      grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
+      capability: "CANONICAL_COMMIT",
+      action: "memory.create",
+      target: "overlap",
+      now: NOW,
+    });
+    const first = harbor.commitCanonical({
+      actor: MARTIN,
+      grant,
+      action: "memory.create",
+      target: "overlap",
+      execute: async (ctx) => {
+        const cell = await adapter.create({
+          content: { type: "text", text: "legitimate" },
+          provenance: provenance(),
+          idempotencyKey: randomUUID(),
+          createdBy: MARTIN.id,
+        }, ctx);
+        return { result: cell, eventIds: [] };
+      },
+    });
+    while (!enteredAppend) {
+      await new Promise((r) => setImmediate(r));
+    }
+    await expect(
+      adapter.create({
+        content: { type: "text", text: "borrowed" },
+        provenance: provenance(),
+        idempotencyKey: randomUUID(),
+      })
+    ).rejects.toMatchObject({ denial: { code: "EVENTSTORE_WRITE_FORBIDDEN" } });
+    release();
+    const { result } = await first;
+    expect(result.content).toMatchObject({ type: "text", text: "legitimate" });
+    expect(inner.count()).toBe(1);
+  });
+
+  it("production issueAuthorization without Session Actor fails / is not exported", () => {
+    expect(harborExports).not.toHaveProperty("issueAuthorization");
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    expect(() =>
+      harbor.agency.issueAuthorization(MARTIN, {
+        grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
+        capability: "CANONICAL_COMMIT",
+        action: "memory.create",
+        target: "no-session",
+      })
+    ).toThrow(AgencyDeniedError);
+  });
+
+  it("AI Session Actor cannot issueAuthorization", async () => {
+    const host = new DesktopHost();
+    host.attachActor(AI);
+    await expect(
+      host.memoryCreate({
+        content: { type: "text", text: "ai-write" },
+        provenance: provenance(),
+        idempotencyKey: randomUUID(),
+      })
+    ).rejects.toMatchObject({ denial: { code: "HUMAN_AUTHORIZATION_REQUIRED" } });
   });
 });

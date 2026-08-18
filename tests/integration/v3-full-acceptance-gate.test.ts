@@ -20,6 +20,7 @@ import {
   AgencyDeniedError,
   HarborService,
 } from "@ailexsi/v3-harbor";
+import { issueTestAuthorization } from "@ailexsi/v2-test-kit";
 import { authorizedCreate } from "../helpers/authorized-write.js";
 
 const CORE_PIN = "652d01eb06dd0841c3b475023883675af6dcd698";
@@ -186,13 +187,13 @@ describe("V3 FULL ACCEPTANCE / SYSTEM INTEGRITY GATE", () => {
     const denyCommit = await denialOfAsync(() =>
       harbor.commitCanonical({
         actor: AI,
-        grant: harbor.agency.issueAuthorization(HUMAN, {
+        grant: issueTestAuthorization(HUMAN, {
           grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
           capability: "CANONICAL_COMMIT",
           action: "memory.create",
           target: "blocked",
           now: NOW,
-        }),
+        }, harbor.agency.registry),
         action: "memory.create",
         target: "blocked",
         execute: async () => {
@@ -211,26 +212,26 @@ describe("V3 FULL ACCEPTANCE / SYSTEM INTEGRITY GATE", () => {
     expect(await runtime.queries.eventCount()).toBe(seedEvents);
     expect(harbor.currentFingerprint()).toBe(fingerprint);
 
-    const grant = harbor.agency.issueAuthorization(HUMAN, {
+    const grant = issueTestAuthorization(HUMAN, {
       grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "memory.create",
       target: "authorized-integrity",
       now: NOW,
-    });
+    }, harbor.agency.registry);
     const { result, record } = await harbor.commitCanonical({
       actor: HUMAN,
       grant,
       action: "memory.create",
       target: "authorized-integrity",
       now: NOW,
-      execute: async () => {
+      execute: async (ctx) => {
         const cell = await runtime!.adapter.create({
           content: { type: "text", text: "authorized integrity memory" },
           provenance: provenance(),
           idempotencyKey: randomUUID(),
           createdBy: HUMAN.id,
-        });
+        }, ctx);
         const stream = await runtime!.store.getByAggregate(cell.identity.id);
         return { result: cell, eventIds: stream.map((e) => e.event.eventId) };
       },

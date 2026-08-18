@@ -18,10 +18,11 @@ import {
   createCoreRuntime,
   classifyV2Error,
   V2CommandValidationError,
-  testOnlyEventStore,
   type CoreRuntime,
 } from "@ailexsi/v2-command-adapter";
 import { startLivePostgres, type LivePgHandle } from "@ailexsi/v2-test-kit";
+import { createDb } from "@ailexsi/persistence";
+import { PostgresEventStore } from "@ailexsi/eventstore";
 import {
   ConcurrencyConflictError,
   IdempotencyConflictError,
@@ -307,8 +308,10 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
     // EventStore contract: same key, different payload → IdempotencyConflictError
     const existing = await runtime!.store.getByIdempotencyKey(key);
     expect(existing).not.toBeNull();
+    const db = createDb(live!.connectionString);
+    const writable = new PostgresEventStore(db);
     await expect(
-      testOnlyEventStore(runtime!).append({
+      writable.append({
         event: {
           ...existing!.event,
           eventId: randomUUID(),
@@ -322,6 +325,7 @@ describe("MEMORY FOUNDATION GATE — live PostgresEventStore", () => {
         environment: existing!.environment,
       })
     ).rejects.toBeInstanceOf(IdempotencyConflictError);
+    await db.client.end({ timeout: 2 }).catch(() => undefined);
 
     const classified = classifyV2Error(
       new IdempotencyConflictError(key)

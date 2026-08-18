@@ -1,7 +1,9 @@
 /**
- * Authorized Mutation Context — created only by AgencyBoundary.commitCanonical.
- * One operation, then consumed. Not constructible from command JSON.
+ * Operation-bound Authorized Mutation Context.
+ * Created only by AgencyBoundary.commitCanonical. Passed into execute.
+ * Not ambient. Not serialized. One consume, then unusable.
  */
+import { AgencyDeniedError } from "./agency.js";
 import type { AuthorizationGrant } from "./agency.js";
 import type { HarborActor } from "./types.js";
 
@@ -12,33 +14,65 @@ export interface AuthorizedMutationContext {
   readonly target: string;
 }
 
-type Slot = {
-  ctx: AuthorizedMutationContext;
-  consumed: boolean;
-};
+class BoundMutationContext implements AuthorizedMutationContext {
+  readonly actor: HarborActor;
+  readonly grant: AuthorizationGrant;
+  readonly action: string;
+  readonly target: string;
+  #alive = true;
+  #consumed = false;
 
-let slot: Slot | null = null;
-
-export function installMutationContext(ctx: AuthorizedMutationContext): void {
-  if (slot && !slot.consumed) {
-    throw new Error("Authorized Mutation Context already active");
+  constructor(
+    actor: HarborActor,
+    grant: AuthorizationGrant,
+    action: string,
+    target: string
+  ) {
+    this.actor = actor;
+    this.grant = grant;
+    this.action = action;
+    this.target = target;
   }
-  slot = { ctx, consumed: false };
-}
 
-export function currentMutationContext(): AuthorizedMutationContext | null {
-  if (!slot || slot.consumed) return null;
-  return slot.ctx;
-}
-
-export function consumeMutationContext(): AuthorizedMutationContext {
-  if (!slot || slot.consumed) {
-    throw new Error("Authorized Mutation Context missing or already consumed");
+  consume(): void {
+    if (!this.#alive || this.#consumed) {
+      throw new AgencyDeniedError(
+        this.actor,
+        "CANONICAL_COMMIT",
+        "Authorized Mutation Context missing, consumed, or invalidated",
+        { code: "EVENTSTORE_WRITE_FORBIDDEN", action: this.action, target: this.target }
+      );
+    }
+    this.#consumed = true;
   }
-  slot.consumed = true;
-  return slot.ctx;
+
+  invalidate(): void {
+    this.#alive = false;
+  }
 }
 
-export function clearMutationContext(): void {
-  slot = null;
+export function createBoundMutationContext(
+  actor: HarborActor,
+  grant: AuthorizationGrant,
+  action: string,
+  target: string
+): AuthorizedMutationContext {
+  return new BoundMutationContext(actor, grant, action, target);
+}
+
+export function consumeBoundMutationContext(ctx: unknown): AuthorizedMutationContext {
+  if (!(ctx instanceof BoundMutationContext)) {
+    throw new AgencyDeniedError(
+      { id: "unknown", kind: "system" },
+      "CANONICAL_COMMIT",
+      "Core Adapter Gate: no Authorized Mutation Context — EventStore write rejected",
+      { code: "EVENTSTORE_WRITE_FORBIDDEN", action: "adapter" }
+    );
+  }
+  ctx.consume();
+  return ctx;
+}
+
+export function invalidateBoundMutationContext(ctx: unknown): void {
+  if (ctx instanceof BoundMutationContext) ctx.invalidate();
 }

@@ -4,3 +4,4 @@ export {
   resolveDesktopDatabase,
   type DesktopDbHandle,
 } from "./resolve-desktop-db.js";
+export { issueTestAuthorization } from "./test-authorization.js";

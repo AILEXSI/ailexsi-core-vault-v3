@@ -13,12 +13,12 @@ import {
   capabilitiesFor,
   hasCapability,
   issueAuthority,
-  issueAuthorization,
   isIssuedGrant,
   sealActor,
   type AuthorizationGrant,
 } from "@ailexsi/v3-harbor";
 import { authorizedCreate } from "../helpers/authorized-write.js";
+import { issueTestAuthorization } from "@ailexsi/v2-test-kit";
 
 const root = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
 const HUMAN = { id: "martin", kind: "human" as const, authorizeCanonical: true, authorizeExternal: true };
@@ -159,7 +159,7 @@ describe("Explicit agency / permission boundary", () => {
     const store = new InMemoryEventStore();
     const adapter = new MemoryCommandAdapter({ store, environment: "test" });
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
-    const grant = issueAuthorization(HUMAN, {
+    const grant = issueTestAuthorization(HUMAN, {
       grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "memory.create",
@@ -173,13 +173,13 @@ describe("Explicit agency / permission boundary", () => {
       action: "memory.create",
       target: "authorized-memory",
       now: NOW,
-      execute: async () => {
+      execute: async (ctx) => {
         const cell = await adapter.create({
           content: { type: "text", text: "canonical from authorized human" },
           provenance: provenance(),
           idempotencyKey: randomUUID(),
           createdBy: HUMAN.id,
-        });
+        }, ctx);
         return { result: cell, eventIds: store.all().map((e) => e.event.eventId) };
       },
     });
@@ -208,7 +208,7 @@ describe("Explicit agency / permission boundary", () => {
     expect(escalate.denial.code).toBe("PERMISSION_ESCALATION_BLOCKED");
 
     const aiGrant = denialOf(() =>
-      issueAuthorization(AI, {
+      issueTestAuthorization(AI, {
         grantedTo: { id: AI.id, kind: AI.kind },
         capability: "CANONICAL_COMMIT",
         action: "memory.create",
@@ -264,7 +264,7 @@ describe("Explicit agency / permission boundary", () => {
     await expect(
       harbor.commitCanonical({
         actor: AI,
-        grant: issueAuthorization(HUMAN, {
+        grant: issueTestAuthorization(HUMAN, {
           grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
           capability: "CANONICAL_COMMIT",
           action: "memory.create",
@@ -273,12 +273,12 @@ describe("Explicit agency / permission boundary", () => {
         }),
         action: "memory.create",
         target: "blocked",
-        execute: async () => {
+        execute: async (ctx) => {
           await adapter.create({
             content: { type: "text", text: "should not persist" },
             provenance: provenance(),
             idempotencyKey: randomUUID(),
-          });
+          }, ctx);
           return { result: null, eventIds: [] };
         },
       })
@@ -300,7 +300,7 @@ describe("Explicit agency / permission boundary", () => {
     const store = new InMemoryEventStore();
     const adapter = new MemoryCommandAdapter({ store, environment: "test" });
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
-    const grant = issueAuthorization(HUMAN, {
+    const grant = issueTestAuthorization(HUMAN, {
       grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "memory.create",
@@ -313,13 +313,13 @@ describe("Explicit agency / permission boundary", () => {
       action: "memory.create",
       target: "prov-target",
       now: NOW,
-      execute: async () => {
+      execute: async (ctx) => {
         const cell = await adapter.create({
           content: { type: "text", text: "authorized" },
           provenance: provenance(),
           idempotencyKey: randomUUID(),
           createdBy: HUMAN.id,
-        });
+        }, ctx);
         return { result: cell, eventIds: store.all().map((e) => e.event.eventId) };
       },
     });
@@ -336,7 +336,7 @@ describe("Explicit agency / permission boundary", () => {
     expect(inspected[0]!.provenance.sourceEventIds).toEqual(record.resultingEventIds);
     expect(record.provenance.class).toBe("V3-DERIVED");
 
-    const extGrant = issueAuthorization(HUMAN, {
+    const extGrant = issueTestAuthorization(HUMAN, {
       grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "EXTERNAL_ACTION",
       action: "notify",
@@ -383,7 +383,7 @@ describe("Explicit agency / permission boundary", () => {
     expect(() => caps.push("CANONICAL_COMMIT")).toThrow();
     expect(capabilitiesFor(AI)).toEqual(["READ_ONLY", "DERIVED_WRITE", "CANONICAL_PROPOSAL"]);
 
-    const grant = issueAuthorization(HUMAN, {
+    const grant = issueTestAuthorization(HUMAN, {
       grantedTo: { id: HUMAN.id, kind: HUMAN.kind },
       capability: "CANONICAL_COMMIT",
       action: "memory.create",
@@ -407,12 +407,12 @@ describe("Explicit agency / permission boundary", () => {
         grant: forged,
         action: "memory.create",
         target: "sealed",
-        execute: async () => {
+        execute: async (ctx) => {
           await adapter.create({
             content: { type: "text", text: "bypass" },
             provenance: provenance(),
             idempotencyKey: randomUUID(),
-          });
+          }, ctx);
           return { result: null, eventIds: [] };
         },
       })
@@ -424,12 +424,12 @@ describe("Explicit agency / permission boundary", () => {
       action: "memory.create",
       target: "sealed",
       now: NOW,
-      execute: async () => {
+      execute: async (ctx) => {
         const cell = await adapter.create({
           content: { type: "text", text: "first use" },
           provenance: provenance(),
           idempotencyKey: randomUUID(),
-        });
+        }, ctx);
         return { result: cell, eventIds: store.all().map((e) => e.event.eventId) };
       },
     });
@@ -440,12 +440,12 @@ describe("Explicit agency / permission boundary", () => {
         grant,
         action: "memory.create",
         target: "sealed",
-        execute: async () => {
+        execute: async (ctx) => {
           await adapter.create({
             content: { type: "text", text: "second use" },
             provenance: provenance(),
             idempotencyKey: randomUUID(),
-          });
+          }, ctx);
           return { result: null, eventIds: [] };
         },
       })

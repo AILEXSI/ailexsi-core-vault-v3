@@ -38,6 +38,22 @@ function isConnectomeRelationKind(content: MemoryContent | undefined): boolean {
   return data?.kind === "connectome-relation";
 }
 
+/** Relation citations come from the Authorized Mutation Context, not the caller. */
+function stampRelationProvenance(
+  content: MemoryContent,
+  ctx: AuthorizedMutationContext
+): MemoryContent {
+  if (!isConnectomeRelationKind(content) || content.type !== "structured") return content;
+  return {
+    ...content,
+    structuredData: {
+      ...(content.structuredData as Record<string, unknown>),
+      grantId: ctx.grant.grantId,
+      authorizedById: ctx.actor.id,
+    },
+  };
+}
+
 function denyWrite(
   ctx: AuthorizedMutationContext | null,
   action: string,
@@ -103,8 +119,9 @@ export class MemoryCommandAdapter {
       }
       await this.assertRelationEvidence(cmd.content, ctx);
     }
+    const content = stampRelationProvenance(cmd.content, ctx);
     const cell = await this.#domain.create({
-      content: cmd.content,
+      content,
       context: cmd.context,
       meaning: cmd.meaning,
       provenance: cmd.provenance,
@@ -137,8 +154,9 @@ export class MemoryCommandAdapter {
       }
       await this.assertRelationEvidence(cmd.content, ctx);
     }
+    const content = stampRelationProvenance(cmd.content, ctx);
     const cell = await this.#domain.update(cmd.memoryId, {
-      content: cmd.content,
+      content,
       context: cmd.context,
       meaning: cmd.meaning,
       provenance: cmd.provenance,

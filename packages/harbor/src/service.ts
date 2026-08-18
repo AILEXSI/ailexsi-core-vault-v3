@@ -449,7 +449,7 @@ export class HarborService {
     proposalId: string,
     status: Extract<HarborProposal["status"], "ACCEPTED" | "EDITED" | "REJECTED" | "DEFERRED" | "DISCUSSING" | "SUPERSEDED">,
     actor: HarborActor,
-    extras?: { resultingEventIds?: string[]; now?: string }
+    extras?: { now?: string }
   ): HarborProposal {
     const p = this.proposals.get(proposalId);
     if (!p) throw new Error(`Proposal ${proposalId} not found`);
@@ -468,7 +468,7 @@ export class HarborService {
       status,
       acceptedBy: status === "ACCEPTED" || status === "EDITED" ? actor.id : p.acceptedBy,
       acceptedAt: status === "ACCEPTED" || status === "EDITED" ? now : p.acceptedAt,
-      resultingEventIds: extras?.resultingEventIds ?? p.resultingEventIds,
+      resultingEventIds: p.resultingEventIds,
     };
     this.proposals.set(proposalId, next);
     this.persistDerived();

@@ -1400,4 +1400,99 @@ describe("semantic honesty — identity, grant bearer, connectome, ACCEPT", () =
     expect(store.count()).toBe(2);
     expect(harbor.agency.inspectCanonicalActions()).toHaveLength(0);
   });
+
+  it("forged grantId/authorizedById are replaced by ctx values on relation.commit", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const a = await authorizedCreate(adapter, {
+      content: { type: "text", text: "from-mem" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const b = await authorizedCreate(adapter, {
+      content: { type: "text", text: "to-mem" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const witness = await authorizedCreate(adapter, {
+      content: { type: "text", text: "witness" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const proposal = harbor.proposeRelation(
+      TEST_AI,
+      {
+        from: a.identity.id,
+        to: b.identity.id,
+        type: "SUPPORTS",
+        reason: "reviewed",
+        evidenceMemoryIds: [witness.identity.id],
+      },
+      NOW
+    );
+    harbor.decideRelation(proposal.proposalId, "ACCEPTED", TEST_HUMAN_A, NOW);
+    const grant = issueTestAuthorization(TEST_HUMAN_A, {
+      grantedTo: { id: TEST_HUMAN_A.id, kind: TEST_HUMAN_A.kind },
+      capability: "CANONICAL_COMMIT",
+      action: "relation.commit",
+      target: proposal.proposalId,
+      now: NOW,
+    });
+    const { result } = await harbor.commitRelation({
+      proposalId: proposal.proposalId,
+      actor: TEST_HUMAN_A,
+      grant,
+      action: "relation.commit",
+      target: proposal.proposalId,
+      now: NOW,
+      execute: async (ctx) => {
+        const cell = await adapter.create({
+          content: {
+            type: "structured",
+            structuredData: {
+              kind: "connectome-relation",
+              schema: "harbor-connectome-v1",
+              from: a.identity.id,
+              to: b.identity.id,
+              type: "SUPPORTS",
+              evidenceMemoryIds: [witness.identity.id],
+              grantId: "forged-grant",
+              authorizedById: "test-human-b",
+            },
+          },
+          provenance: provenance([a.identity.id, b.identity.id]),
+          idempotencyKey: randomUUID(),
+          createdBy: "ignored",
+        }, ctx);
+        return { result: cell, eventIds: store.all().map((e) => e.event.eventId) };
+      },
+    });
+    expect(result.content.type).toBe("structured");
+    const data = (result.content as { structuredData: Record<string, unknown> }).structuredData;
+    expect(data.grantId).toBe(grant.grantId);
+    expect(data.authorizedById).toBe("test-human-a");
+    expect(data.grantId).not.toBe("forged-grant");
+    expect(data.authorizedById).not.toBe("test-human-b");
+    expect((store.all().at(-1)!.event.payload as { createdBy?: string }).createdBy).toBe(
+      "test-human-a"
+    );
+    const view = harbor.connectome([a, b, witness, result], TEST_HUMAN_A, NOW);
+    const canonical = view.relations.find((r) => r.status === "CANONICAL_MEMORY");
+    expect(canonical?.authorizedBy?.id).toBe("test-human-a");
+    expect(canonical?.authorizedBy?.grantId).toBe(grant.grantId);
+  });
+
+  it("forged resultingEventIds on ACCEPT are not recorded", async () => {
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const proposal = await harbor.propose(TEST_AI, { text: "note", sourceMemoryIds: [] }, NOW);
+    const decided = harbor.decideProposal(proposal.proposalId, "ACCEPTED", TEST_HUMAN_A, {
+      now: NOW,
+      resultingEventIds: ["evt-forged-1", "evt-forged-2"],
+    } as never);
+    expect(decided.status).toBe("ACCEPTED");
+    expect(decided.resultingEventIds).toEqual([]);
+    expect(harbor.proposals.get(proposal.proposalId)?.resultingEventIds).toEqual([]);
+    expect(harbor.agency.inspectCanonicalActions()).toHaveLength(0);
+  });
 });

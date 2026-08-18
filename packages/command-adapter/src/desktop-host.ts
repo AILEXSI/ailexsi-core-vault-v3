@@ -779,8 +779,7 @@ export class DesktopHost {
     return this.requireHarbor().decideProposal(
       String(args.proposalId ?? ""),
       args.status as "ACCEPTED" | "EDITED" | "REJECTED" | "DEFERRED" | "DISCUSSING" | "SUPERSEDED",
-      this.actorOf(args),
-      { resultingEventIds: args.resultingEventIds as string[] | undefined }
+      this.actorOf(args)
     );
   }
 

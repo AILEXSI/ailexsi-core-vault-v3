@@ -43,7 +43,7 @@ Denied actions return a structured `AgencyDenial` (`code`, actor, requested capa
 
 Authorized canonical actions record actor, authorization, action, target, timestamp, resulting event IDs, and provenance.
 
-Proposal generation (`harbor.propose`, cultivation proposals) is separate from `HarborService.commitCanonical`. Accepting a proposal does **not** mint a grant and does **not** write EventStore.
+Proposal generation (`harbor.propose`, cultivation proposals) is separate from `HarborService.commitCanonical`. Accepting a proposal does **not** mint a grant and does **not** write EventStore. Persist is `HarborService.commitProposal`: the proposal must already be `ACCEPTED`/`EDITED`, and a **separate** human grant (`proposal.commit` + proposalId) is required.
 
 ## Epistemic rule
 

@@ -7,6 +7,7 @@ import {
   rejectRecord,
 } from "./epistemic.js";
 import { AgencyBoundary, type CanonicalCommitRequest, type ExternalActionRequest } from "./agency-boundary.js";
+import type { CanonicalActionRecord } from "./agency.js";
 import { detectContradictions, resolveContradiction } from "./contradiction.js";
 import { temporalFromMemory } from "./temporal.js";
 import {
@@ -455,6 +456,46 @@ export class HarborService {
    */
   commitCanonical<T>(request: CanonicalCommitRequest<T>) {
     return this.agency.commitCanonical(request);
+  }
+
+  /**
+   * Persist an already-decided proposal. Accept/edit is not a write.
+   * Requires a separate human AuthorizationGrant bound to this proposalId.
+   */
+  async commitProposal<T>(
+    request: CanonicalCommitRequest<T> & { proposalId: string }
+  ): Promise<{ result: T; record: CanonicalActionRecord; proposal: HarborProposal }> {
+    const proposal = this.proposals.get(request.proposalId);
+    if (!proposal) throw new Error(`Proposal ${request.proposalId} not found`);
+    if (proposal.status !== "ACCEPTED" && proposal.status !== "EDITED") {
+      this.agency.refuseProposalPersist(
+        request.actor,
+        request.proposalId,
+        "Proposal must be ACCEPTED or EDITED before an authorized canonical persist"
+      );
+    }
+    if (proposal.resultingEventIds.length > 0) {
+      this.agency.refuseProposalPersist(
+        request.actor,
+        request.proposalId,
+        "Proposal already produced canonical events"
+      );
+    }
+    if (request.target !== request.proposalId || request.action !== "proposal.commit") {
+      this.agency.refuseProposalPersist(
+        request.actor,
+        request.proposalId,
+        "Proposal persist requires action proposal.commit bound to the proposalId"
+      );
+    }
+    const { result, record } = await this.agency.commitCanonical(request);
+    const next: HarborProposal = {
+      ...proposal,
+      resultingEventIds: [...record.resultingEventIds],
+    };
+    this.proposals.set(proposal.proposalId, next);
+    this.persistDerived();
+    return { result, record, proposal: structuredClone(next) };
   }
 
   performExternal<T>(request: ExternalActionRequest<T>) {

@@ -172,6 +172,17 @@ export class AgencyBoundary {
     );
   }
 
+  refuseProposalPersist(actor: HarborActor, proposalId: string, reason: string): never {
+    throw this.deny(
+      actor,
+      "CANONICAL_COMMIT",
+      "PROPOSAL_IS_NOT_COMMIT",
+      reason,
+      "proposal.commit",
+      proposalId
+    );
+  }
+
   writeEventStoreDirect(actor: HarborActor, target = "eventstore"): never {
     throw this.deny(
       actor,

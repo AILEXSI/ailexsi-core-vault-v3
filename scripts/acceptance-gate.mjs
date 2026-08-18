@@ -284,6 +284,7 @@ gate(
       !boundarySrc.includes("PostgresEventStore") &&
       serviceSrc.includes("this.agency") &&
       serviceSrc.includes("commitCanonical") &&
+      serviceSrc.includes("commitProposal") &&
       serviceSrc.includes("Proposal accept is not a grant")
     );
   })()

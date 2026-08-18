@@ -44,7 +44,7 @@ No new V3 GREEN freeze tag is minted until a dedicated freeze is authorized. The
 - Cultivation accept/reject/defer (human; EventStore only on accept)
 - Harbor epistemic overlays (FACT default for Core cells; confirm → USER_ASSERTED, never silent FACT)
 - **Agency = GREEN / implemented.** Enforceable permission boundary (`AgencyBoundary`): frozen authority, issued grants, structured denials, audit of authorized canonical/external actions. AI cannot self-grant `CANONICAL_COMMIT`.
-- Proposal generation is separate from canonical mutation; accept does not mint `CANONICAL_COMMIT`
+- Proposal persist: `commitProposal` requires ACCEPTED/EDITED **and** a separate human grant (`proposal.commit`). Accept is not a Core write.
 - Contradiction detect/resolve (human resolution only)
 - Temporal is_true / was_true overlay
 - ContextPackage with inclusion reasons and reproducible key

@@ -94,9 +94,11 @@ describe("V3 Connectome", () => {
     const first = harbor.traverseConnectome(cells, parent.identity.id, child.identity.id, HUMAN);
     const second = harbor.traverseConnectome(cells, parent.identity.id, child.identity.id, HUMAN);
     expect(first).toEqual(second);
-    expect(first.found).toBe(true);
-    expect(first.hops.length).toBeGreaterThan(0);
-    expect(first.hops[0]!.explanation.why.length).toBeGreaterThan(0);
+    expect(first.found).toBe(false);
+    expect(first.hops).toEqual([]);
+    expect(first.reason).toBe(
+      "A speculative path exists but is excluded from canonical traversal."
+    );
     const missing = harbor.traverseConnectome(cells, child.identity.id, "no-such-node", HUMAN);
     expect(missing.found).toBe(false);
     expect(missing.reason).toMatch(/No path found/);
@@ -131,13 +133,14 @@ describe("V3 Connectome", () => {
   });
 
   it("unauthorized relation commit is BLOCKED and does not mutate state", async () => {
-    const { store, adapter, parent, child } = await twoRelatedMemories();
+    const { store, adapter, parent, child, witness } = await twoRelatedMemories();
     const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
     const proposal = harbor.proposeRelation(AI, {
       from: parent.identity.id,
       to: child.identity.id,
       type: "SUPPORTS",
       reason: "test",
+      evidenceMemoryIds: [witness.identity.id],
     }, NOW);
     harbor.decideRelation(proposal.proposalId, "ACCEPTED", HUMAN, NOW);
     const events = store.count();
@@ -215,10 +218,10 @@ describe("V3 Connectome", () => {
     const view = harbor.connectome([...cells, result], HUMAN, NOW);
     const canonical = view.relations.find((r) => r.status === "CANONICAL_MEMORY");
     expect(canonical?.canonicalMemoryId).toBe(result.identity.id);
-    expect(canonical?.explanation.authority).toMatch(/human:martin/);
+    expect(canonical?.explanation.authority).toMatch(/citation/);
     expect(canonical?.explanation.status).toBe("CANONICAL_MEMORY");
     const explained = harbor.explainConnectomeRelation([...cells, result], canonical!.relationId, HUMAN, NOW);
-    expect(explained.why).toMatch(/explicit human authorization/);
+    expect(explained.why).toMatch(/citations are not grants|do not prove/i);
   });
 
   it("AI cannot self-authorize a relation grant", () => {

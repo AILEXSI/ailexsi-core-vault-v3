@@ -1187,3 +1187,217 @@ describe("AUTO-GRANT removed — Session Actor is not AuthorizationGrant", () =>
     }
   });
 });
+
+describe("semantic honesty — identity, grant bearer, connectome, ACCEPT", () => {
+  it("1: host start without actor does not invent a human Session Actor", async () => {
+    const host = new DesktopHost();
+    expect(host.getSessionActor()).toBeNull();
+    const err = await denialOfAsync(() =>
+      host.memoryCreate({
+        content: { type: "text", text: "no-identity" },
+        provenance: provenance(),
+        idempotencyKey: "X",
+      })
+    );
+    expect(err.denial.code).toBe("HUMAN_AUTHORIZATION_REQUIRED");
+    expect(err.message).toMatch(/No session actor/i);
+    const entry = readFileSync(
+      path.join(process.cwd(), "scripts/desktop-host-entry.ts"),
+      "utf8"
+    );
+    expect(entry).not.toMatch(/desktop-user/);
+    expect(entry).toMatch(/DESKTOP_SESSION_ACTOR_ID/);
+  });
+
+  it("2: grant JSON is not authority without a matching Durable Grant Registry record", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const bearer = {
+      grantId: randomUUID(),
+      capability: "CANONICAL_COMMIT" as const,
+      grantedBy: { id: TEST_HUMAN_A.id, kind: "human" as const },
+      grantedTo: { id: TEST_HUMAN_A.id, kind: "human" as const },
+      action: "memory.create",
+      target: "X",
+      issuedAt: NOW,
+      provenance: {
+        source: "explicit-human-authorization" as const,
+        notFromProposalAcceptance: true as const,
+      },
+    };
+    const err = await denialOfAsync(() =>
+      harbor.commitCanonical({
+        actor: TEST_HUMAN_A,
+        grant: bearer,
+        action: "memory.create",
+        target: "X",
+        execute: async (ctx) => {
+          await adapter.create({
+            content: { type: "text", text: "bearer" },
+            provenance: provenance(),
+            idempotencyKey: "X",
+          }, ctx);
+          return { result: null, eventIds: [] };
+        },
+      })
+    );
+    expect(err.denial.code).toBe("GRANT_INVALID");
+    expect(store.count()).toBe(0);
+  });
+
+  it("3: connectome-relation cell shape without grant markers is not CANONICAL_MEMORY", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const a = await authorizedCreate(adapter, {
+      content: { type: "text", text: "shape-a" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const b = await authorizedCreate(adapter, {
+      content: { type: "text", text: "shape-b" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const fake = {
+      ...a,
+      identity: { ...a.identity, id: randomUUID(), shortId: "fake" },
+      content: {
+        type: "structured" as const,
+        structuredData: {
+          kind: "connectome-relation",
+          schema: "harbor-connectome-v1",
+          from: a.identity.id,
+          to: b.identity.id,
+          type: "SUPPORTS",
+          evidenceMemoryIds: [a.identity.id, b.identity.id],
+        },
+      },
+    };
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const view = harbor.connectome([a, b, fake], TEST_HUMAN_A, NOW);
+    expect(view.relations.some((r) => r.status === "CANONICAL_MEMORY")).toBe(false);
+    expect(JSON.stringify(view)).not.toMatch(/after explicit human authorization/i);
+    const pathResult = harbor.traverseConnectome(
+      [a, b, fake],
+      a.identity.id,
+      b.identity.id,
+      TEST_HUMAN_A
+    );
+    expect(pathResult.found).toBe(false);
+    expect(pathResult.hops).toEqual([]);
+  });
+
+  it("4: OBSERVED parentMemoryIds is not a canonical traverse path", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const parent = await authorizedCreate(adapter, {
+      content: { type: "text", text: "parent" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const child = await authorizedCreate(adapter, {
+      content: { type: "text", text: "child" },
+      provenance: provenance([parent.identity.id]),
+      idempotencyKey: randomUUID(),
+    });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const view = harbor.connectome([parent, child], TEST_HUMAN_A, NOW);
+    const observed = view.relations.find(
+      (r) => r.type === "DERIVED_FROM" && r.status === "OBSERVED"
+    );
+    expect(observed).toBeDefined();
+    const pathResult = harbor.traverseConnectome(
+      [parent, child],
+      parent.identity.id,
+      child.identity.id,
+      TEST_HUMAN_A
+    );
+    expect(pathResult.found).toBe(false);
+    expect(pathResult.hops).toEqual([]);
+    expect(pathResult.reason).toBe(
+      "A speculative path exists but is excluded from canonical traversal."
+    );
+    expect(pathResult).not.toHaveProperty("speculative", true);
+  });
+
+  it("5: ACCEPT is a decision — no Grant, no EventStore write, no CanonicalActionRecord", async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "sem-accept-"));
+    const store = new InMemoryEventStore();
+    const harbor = HarborService.open({
+      corePin: CORE_PIN,
+      vaultReferenceSha: "v",
+      persistDir: dir,
+    });
+    try {
+    const proposal = await harbor.propose(TEST_AI, { text: "remember tea", sourceMemoryIds: [] }, NOW);
+    expect(harbor.agency.issuedGrantCount()).toBe(0);
+    await expect(() => harbor.decideProposal(proposal.proposalId, "ACCEPTED", TEST_AI)).toThrow(
+      AgencyDeniedError
+    );
+    expect(harbor.proposals.get(proposal.proposalId)?.status).toBe("PROPOSED");
+    const decided = harbor.decideProposal(proposal.proposalId, "ACCEPTED", TEST_HUMAN_A, { now: NOW });
+    expect(decided.status).toBe("ACCEPTED");
+    expect(harbor.agency.issuedGrantCount()).toBe(0);
+    expect(harbor.agency.inspectCanonicalActions()).toHaveLength(0);
+    expect(store.count()).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("6: relation proposal without evidence is unsubstantiated, not proof", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const a = await authorizedCreate(adapter, {
+      content: { type: "text", text: "tea" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const b = await authorizedCreate(adapter, {
+      content: { type: "text", text: "coffee" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const proposal = harbor.proposeRelation(
+      TEST_AI,
+      {
+        from: a.identity.id,
+        to: b.identity.id,
+        type: "SUPPORTS",
+        reason: "looks related",
+        evidenceMemoryIds: [],
+      },
+      NOW
+    );
+    harbor.decideRelation(proposal.proposalId, "ACCEPTED", TEST_HUMAN_A, NOW);
+    const view = harbor.connectome([a, b], TEST_HUMAN_A, NOW);
+    const listed = view.relations.find((r) => r.relationId === `prop:${proposal.proposalId}`);
+    expect(listed?.status).toBe("PROPOSED");
+    expect(listed?.confidence).toBe(0);
+    expect(listed?.explanation.why).toMatch(/Unsubstantiated/i);
+    expect(listed?.explanation.authority).toMatch(/unsubstantiated/i);
+    const grant = issueTestAuthorization(TEST_HUMAN_A, {
+      grantedTo: { id: TEST_HUMAN_A.id, kind: TEST_HUMAN_A.kind },
+      capability: "CANONICAL_COMMIT",
+      action: "relation.commit",
+      target: proposal.proposalId,
+      now: NOW,
+    });
+    const err = await denialOfAsync(() =>
+      harbor.commitRelation({
+        proposalId: proposal.proposalId,
+        actor: TEST_HUMAN_A,
+        grant,
+        action: "relation.commit",
+        target: proposal.proposalId,
+        execute: async () => ({ result: null, eventIds: [] }),
+      })
+    );
+    expect(err.denial.code).toBe("PROPOSAL_IS_NOT_COMMIT");
+    expect(err.message).toMatch(/third-party Core Memory evidence/i);
+    expect(store.count()).toBe(2);
+    expect(harbor.agency.inspectCanonicalActions()).toHaveLength(0);
+  });
+});

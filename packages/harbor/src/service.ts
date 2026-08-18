@@ -338,6 +338,7 @@ export class HarborService {
     actor: HarborActor,
     extras?: { title?: string; description?: string; now?: string }
   ): CultivationProposal {
+    // Decision only. ACCEPT is not a Grant and does not persist Core.
     if (status === "ACCEPTED" || status === "EDITED") {
       this.agency.require(actor, "CANONICAL_COMMIT", "decideCultivation", proposalId);
     } else {
@@ -452,6 +453,7 @@ export class HarborService {
   ): HarborProposal {
     const p = this.proposals.get(proposalId);
     if (!p) throw new Error(`Proposal ${proposalId} not found`);
+    // Decision only. ACCEPT is not a Grant and does not persist Core.
     if (status === "ACCEPTED" || status === "EDITED") {
       this.agency.require(actor, "CANONICAL_COMMIT", "decideProposal", proposalId);
     } else {
@@ -608,6 +610,7 @@ export class HarborService {
   ): RelationProposal {
     const current = this.relationProposals.get(proposalId);
     if (!current) throw new Error(`Relation proposal ${proposalId} not found`);
+    // Decision only. ACCEPT is not a Grant and does not persist Core.
     if (status === "ACCEPTED" || status === "EDITED") {
       this.agency.require(actor, "CANONICAL_COMMIT", "decideRelation", proposalId);
     } else {
@@ -653,6 +656,16 @@ export class HarborService {
         request.actor,
         request.proposalId,
         "Relation persist requires action relation.commit bound to the proposalId"
+      );
+    }
+    const thirdParty = proposal.evidenceMemoryIds.filter(
+      (id) => id && id !== proposal.from && id !== proposal.to
+    );
+    if (thirdParty.length === 0) {
+      this.agency.refuseProposalPersist(
+        request.actor,
+        request.proposalId,
+        "Relation persist requires third-party Core Memory evidence; from/to existence is not proof"
       );
     }
     const { result, record } = await this.agency.commitCanonical(request);

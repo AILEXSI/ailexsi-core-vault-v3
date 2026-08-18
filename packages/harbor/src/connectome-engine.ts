@@ -125,6 +125,9 @@ export function relationFromCanonicalMemory(cell: MemoryCell): ConnectomeRelatio
     authorizedById?: string;
   };
   if (!data.from || !data.to || !data.type) return null;
+  const grantId = typeof data.grantId === "string" ? data.grantId.trim() : "";
+  const authorizedById = typeof data.authorizedById === "string" ? data.authorizedById.trim() : "";
+  if (!grantId || !authorizedById) return null;
   const when = cell.timestamps.confirmedAt ?? cell.timestamps.createdAt;
   return {
     relationId: `can:${cell.identity.id}`,
@@ -139,9 +142,7 @@ export function relationFromCanonicalMemory(cell: MemoryCell): ConnectomeRelatio
     evidenceProposalIds: [],
     competingRelationIds: [],
     temporal: { validFrom: cell.timestamps.validFrom, validUntil: cell.timestamps.validTo ?? undefined },
-    authorizedBy: data.authorizedById
-      ? { id: data.authorizedById, kind: "human", grantId: data.grantId }
-      : undefined,
+    authorizedBy: { id: authorizedById, kind: "human", grantId },
     canonicalMemoryId: cell.identity.id,
     createdAt: when,
     explanation: explain({
@@ -149,12 +150,10 @@ export function relationFromCanonicalMemory(cell: MemoryCell): ConnectomeRelatio
       from: data.from,
       to: data.to,
       status: "CANONICAL_MEMORY",
-      why: "Persisted as a Core Memory structured cell after explicit human authorization. Cited memories are citations, not proof of the relation.",
+      why: "Core Memory structured cell citing grant metadata from the relation.commit path. Citations are not grants and do not prove the relation.",
       source: `memory:${cell.identity.id}`,
       when,
-      authority: data.authorizedById
-        ? `human:${data.authorizedById}${data.grantId ? ` grant:${data.grantId}` : ""}`
-        : "unknown — incomplete authorization metadata",
+      authority: `citation authorizedById:${authorizedById} grantId:${grantId} (citation, not a grant)`,
     }),
     class: HARBOR_CLASS,
   };
@@ -308,18 +307,23 @@ export function assembleConnectome(input: {
         to: rp.to,
         type: rp.type,
         status: rp.status === "REJECTED" ? "INFERRED" : "PROPOSED",
-        confidence: rp.status === "REJECTED" ? 0 : 0.4,
+        confidence: rp.evidenceMemoryIds.length === 0 ? 0 : rp.status === "REJECTED" ? 0 : 0.4,
         evidenceMemoryIds: rp.evidenceMemoryIds,
         evidenceProposalIds: [rp.proposalId],
         now: rp.createdAt,
-        why: rp.reason,
+        why:
+          rp.evidenceMemoryIds.length === 0
+            ? `${rp.reason} Unsubstantiated — no evidence Memory ids. Existence of from/to is not proof.`
+            : rp.reason,
         source: `harbor.relationProposal:${rp.proposalId}`,
         authority:
-          rp.status === "COMMITTED" && rp.canonicalMemoryId
-            ? `canonical memory:${rp.canonicalMemoryId}`
-            : rp.decidedBy
-              ? `human-decision:${rp.decidedBy} (not persisted)`
-              : "none — proposal only",
+          rp.evidenceMemoryIds.length === 0
+            ? "none — unsubstantiated proposal"
+            : rp.status === "COMMITTED" && rp.canonicalMemoryId
+              ? `canonical memory:${rp.canonicalMemoryId}`
+              : rp.decidedBy
+                ? `human-decision:${rp.decidedBy} (decision only, not persist)`
+                : "none — proposal only",
       })
     );
   }
@@ -367,7 +371,6 @@ export function listRelations(
 
 const CANONICAL_TRAVERSAL = new Set<RelationStatus>([
   "CORE_REFERENCE",
-  "OBSERVED",
   "CANONICAL_MEMORY",
 ]);
 

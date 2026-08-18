@@ -82,19 +82,27 @@ try {
     );
   }
 
+  const sessionId = (process.env.DESKTOP_SESSION_ACTOR_ID ?? "").trim();
   server = await startDesktopBridgeServer({
     connectionString: live.connectionString,
     port,
     environment:
       process.env.AILEXSI_ENV === "production" ? "production" : "development",
     producer: "v2-desktop-host-server",
-    actor: {
-      id: process.env.DESKTOP_SESSION_ACTOR_ID || "desktop-user",
-      kind: "human",
-      authorizeCanonical: true,
-      authorizeExternal: true,
-    },
+    actor: sessionId
+      ? {
+          id: sessionId,
+          kind: "human",
+          authorizeCanonical: true,
+          authorizeExternal: true,
+        }
+      : undefined,
   });
+  if (!sessionId) {
+    console.log(
+      "[host] DESKTOP_SESSION_ACTOR_ID unset — no Session Actor; issue/mutate fail closed"
+    );
+  }
 } catch (e) {
   const msg = e instanceof Error ? e.message : String(e);
   console.error(`[host] Failed to start DesktopHost: ${msg}`);

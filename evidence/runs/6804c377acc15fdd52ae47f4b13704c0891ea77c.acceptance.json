@@ -1,0 +1,251 @@
+{
+  "schemaVersion": 1,
+  "phase": "4",
+  "status": "GREEN",
+  "exitCode": 0,
+  "testedSha": "6804c377acc15fdd52ae47f4b13704c0891ea77c",
+  "originMainSha": "6804c377acc15fdd52ae47f4b13704c0891ea77c",
+  "headsIdentical": true,
+  "tag": null,
+  "corePin": "652d01eb06dd0841c3b475023883675af6dcd698",
+  "vaultPin": "061e444389090c54e431b0e8243e82764f2c198e",
+  "environment": {
+    "platform": "win32",
+    "livePostgres": true,
+    "desktopPath": true
+  },
+  "gates": [
+    {
+      "name": "CORE BASELINE IDENTIFIED",
+      "ok": true,
+      "detail": "652d01eb06dd0841c3b475023883675af6dcd698"
+    },
+    {
+      "name": "VAULT BASELINE IDENTIFIED",
+      "ok": true,
+      "detail": "061e444389090c54e431b0e8243e82764f2c198e"
+    },
+    {
+      "name": "REQUIRED TESTS PRESENT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "HARBOR IMPORT PIPELINE PRESENT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "HARBOR DERIVED INDEX PRESENT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "HARBOR DERIVED QUERY PRESENT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "HARBOR CONTEXT ASSEMBLY PRESENT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "HARBOR REFLECTION ENGINE PRESENT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "HARBOR CULTIVATION PROPOSALS PRESENT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "HARBOR AGENCY BOUNDARY PRESENT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "V2 STRUCTURE PRESENT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "DESKTOP HOST + IPC SURFACE PRESENT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "DATABASE CONFIG VERIFIED",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "CORE CHECKOUT PINNED",
+      "ok": true,
+      "detail": "652d01eb06dd0841c3b475023883675af6dcd698"
+    },
+    {
+      "name": "NO MODIFICATION OF CORE CHECKOUT",
+      "ok": true,
+      "detail": "clean"
+    },
+    {
+      "name": "VAULT CHECKOUT PINNED OR ABSENT",
+      "ok": true,
+      "detail": "061e444389090c54e431b0e8243e82764f2c198e"
+    },
+    {
+      "name": "NO MODIFICATION OF VAULT REFERENCE CHECKOUT",
+      "ok": true,
+      "detail": "clean-or-missing"
+    },
+    {
+      "name": "NO DUAL-WRITE PATH DETECTED",
+      "ok": true,
+      "detail": "clean"
+    },
+    {
+      "name": "PHASE 08 CODE PRESENT: NO",
+      "ok": true,
+      "detail": "no Phase 08 implementation"
+    },
+    {
+      "name": "NO SILENT TEST SKIPS IN SUITE",
+      "ok": true,
+      "detail": "clean"
+    },
+    {
+      "name": "NO PER-COMMAND createCoreRuntime IN DESKTOP HOST",
+      "ok": true,
+      "detail": "long-lived start() only"
+    },
+    {
+      "name": "UNIT+MOCK INTEGRATION TESTS",
+      "ok": true,
+      "detail": "Tests  163 passed (163)"
+    },
+    {
+      "name": "LIVE POSTGRES + CORE EVENTSTORE",
+      "ok": true,
+      "detail": "Tests  5 passed (5)"
+    },
+    {
+      "name": "COMMAND ADAPTER CREATES MEMORY VIA CORE EVENTSTORE",
+      "ok": true,
+      "detail": "proven by live-postgres-memory suite"
+    },
+    {
+      "name": "DESKTOP COMMAND-PATH SUITE",
+      "ok": true,
+      "detail": "Tests  10 passed (10)"
+    },
+    {
+      "name": "DESKTOP PATH REACHES PostgresEventStore",
+      "ok": true,
+      "detail": "store.constructor.name === PostgresEventStore (desktop suite)"
+    },
+    {
+      "name": "DESKTOP AAS-54 REPLAY",
+      "ok": true,
+      "detail": "CLEAR → REBUILD → IDENTICAL via desktop IPC path"
+    },
+    {
+      "name": "DESKTOP HTTP BRIDGE SUITE",
+      "ok": true,
+      "detail": "Tests  5 passed (5)"
+    },
+    {
+      "name": "BRIDGE REACHES PostgresEventStore",
+      "ok": true,
+      "detail": "HTTP /health store=PostgresEventStore"
+    },
+    {
+      "name": "MEMORY FOUNDATION GATE",
+      "ok": true,
+      "detail": "Tests  13 passed (13)"
+    },
+    {
+      "name": "MEMORY FOUNDATION FS AUDIT",
+      "ok": true,
+      "detail": "Tests  2 passed (2)"
+    },
+    {
+      "name": "MEMORY QUERY + READ-MODEL GATE",
+      "ok": true,
+      "detail": "Tests  9 passed (9)"
+    },
+    {
+      "name": "QUERY GATE",
+      "ok": true,
+      "detail": "get/list/history/pagination"
+    },
+    {
+      "name": "READ MODEL GATE",
+      "ok": true,
+      "detail": "DERIVED read model"
+    },
+    {
+      "name": "REPLAY GATE",
+      "ok": true,
+      "detail": "CLEAR→REBUILD→IDENTICAL in query suite"
+    },
+    {
+      "name": "DESKTOP MEMORY E2E GATE",
+      "ok": true,
+      "detail": "Tests  8 passed (8)"
+    },
+    {
+      "name": "DESKTOP USES PostgresEventStore",
+      "ok": true,
+      "detail": "store.constructor.name === PostgresEventStore"
+    },
+    {
+      "name": "DESKTOP REPLAY IDENTICAL",
+      "ok": true,
+      "detail": "CLEAR→rebuildFromCore→IDENTICAL"
+    },
+    {
+      "name": "DESKTOP READ NO-APPEND",
+      "ok": true,
+      "detail": "GET/LIST/HISTORY/REBUILD do not append"
+    },
+    {
+      "name": "MEMORY RETRIEVAL + CONTEXT GATE",
+      "ok": true,
+      "detail": "Tests  7 passed (7)"
+    },
+    {
+      "name": "CONTINUITY FOUNDATION GATE",
+      "ok": true,
+      "detail": "Tests  2 passed (2)"
+    },
+    {
+      "name": "CULTIVATION FOUNDATION GATE",
+      "ok": true,
+      "detail": "Tests  1 passed (1)"
+    },
+    {
+      "name": "DESKTOP CO-CREATION SURFACE GATE",
+      "ok": true,
+      "detail": "Tests  1 passed (1)"
+    }
+  ],
+  "summary": {
+    "failedGates": 0,
+    "hardFailed": 0,
+    "softLiveFailed": 0,
+    "totalGates": 43
+  },
+  "generatedBy": "scripts/acceptance-gate.mjs",
+  "auditOnly": {
+    "generatedAt": "2026-08-18T13:57:23.179Z"
+  },
+  "gitDirtyState": "dirty",
+  "v3Version": "0.1.0",
+  "testCommands": [
+    "npm test",
+    "npm run acceptance",
+    "npm run verify:live"
+  ]
+}

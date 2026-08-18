@@ -1652,4 +1652,62 @@ describe("semantic honesty — identity, grant bearer, connectome, ACCEPT", () =
     expect(memNodes.every((n) => n.status !== "CANONICAL_REFERENCE")).toBe(true);
     expect(memNodes.every((n) => n.status === "UNCERTAIN")).toBe(true);
   });
+
+  it("A: graph() does not turn Core-backed existence into CANONICAL_REFERENCE", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const cell = await authorizedCreate(adapter, {
+      content: { type: "text", text: "graph-node" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const graph = harbor.graph([cell], TEST_HUMAN_A);
+    expect(graph.class).toBe("V3-DERIVED");
+    expect(graph.nodes.every((n) => n.origin !== "CANONICAL_REFERENCE")).toBe(true);
+    expect(graph.edges.every((e) => e.origin !== "CANONICAL_REFERENCE")).toBe(true);
+  });
+
+  it("B: ACCEPTED proposal is not USER_CONFIRMED on the legacy graph", async () => {
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const proposal = await harbor.propose(TEST_AI, { text: "remember tea", sourceMemoryIds: [] }, NOW);
+    harbor.decideProposal(proposal.proposalId, "ACCEPTED", TEST_HUMAN_A, { now: NOW });
+    const graph = harbor.graph([], TEST_HUMAN_A);
+    const node = graph.nodes.find((n) => n.id === `proposal:${proposal.proposalId}`);
+    expect(node).toBeDefined();
+    expect(node!.origin).toBe("DERIVED");
+    expect(node!.origin).not.toBe("USER_CONFIRMED");
+  });
+
+  it("C: context assembly does not map FACT into canonical authority", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const cell = await authorizedCreate(adapter, {
+      content: { type: "text", text: "context-item" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    harbor.scan([cell], TEST_HUMAN_A, NOW);
+    const uncertain = harbor.assemble(
+      [cell],
+      { query: "context", maxItems: 8, maxChars: 4000, selectedMemoryIds: [cell.identity.id] },
+      TEST_HUMAN_A
+    );
+    expect(uncertain.items.every((i) => i.kind === "derived")).toBe(true);
+    expect(uncertain.items.every((i) => i.kind !== "canonical")).toBe(true);
+    expect(uncertain.items.some((i) => i.epistemicStatus === "UNCERTAIN")).toBe(true);
+    harbor.epistemic.set(cell.identity.id, {
+      ...harbor.epistemic.get(cell.identity.id)!,
+      status: "FACT",
+      confidence: 1,
+    });
+    const forcedFact = harbor.assemble(
+      [cell],
+      { query: "context", maxItems: 8, maxChars: 4000, selectedMemoryIds: [cell.identity.id] },
+      TEST_HUMAN_A
+    );
+    expect(forcedFact.items.every((i) => i.kind === "derived")).toBe(true);
+    expect(forcedFact.items.every((i) => i.kind !== "canonical")).toBe(true);
+  });
 });

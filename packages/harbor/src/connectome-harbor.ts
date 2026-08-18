@@ -43,21 +43,16 @@ export function buildHarborConnectome(opts: {
     id: n.id,
     kind: "MEMORY",
     label: n.label,
-    origin: "CANONICAL_REFERENCE",
+    origin: "DERIVED",
   }));
   const edges: HarborGraphEdge[] = baseline.edges.map((e) => {
     const evidence = e.reason;
-    const derived = e.source !== "CORE-BACKED";
     return {
       id: e.id,
       from: e.from,
       to: e.to,
       type: e.type === "derived_from" ? "DERIVED_FROM" : "RELATES_TO",
-      origin: !derived
-        ? "CANONICAL_REFERENCE"
-        : evidence
-          ? "DERIVED"
-          : "INFERRED",
+      origin: evidence ? "DERIVED" : "INFERRED",
       evidence,
     };
   });
@@ -111,7 +106,7 @@ export function buildHarborConnectome(opts: {
       id: `proposal:${p.proposalId}`,
       kind: "PROPOSAL",
       label: p.proposalType,
-      origin: p.status === "ACCEPTED" ? "USER_CONFIRMED" : "DERIVED",
+      origin: "DERIVED",
     });
     for (const src of p.sourceMemoryIds) {
       edges.push({

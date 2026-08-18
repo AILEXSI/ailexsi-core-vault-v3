@@ -222,7 +222,7 @@ function itemFrom(
   const sourceMemoryIds = provenance?.sourceMemoryIds?.length ? [...provenance.sourceMemoryIds] : [view.memoryId];
   return {
     memoryId: view.memoryId,
-    kind: view.status === "FACT" ? "canonical" : "derived",
+    kind: "derived",
     epistemicStatus: view.status,
     confidence: view.confidence,
     relevance: candidate.score / 100,

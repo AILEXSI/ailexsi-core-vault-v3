@@ -1,6 +1,7 @@
 export * from "./types.js";
 export * from "./epistemic.js";
 export * from "./agency.js";
+export * from "./agency-boundary.js";
 export * from "./contradiction.js";
 export * from "./temporal.js";
 export * from "./context-assembly.js";

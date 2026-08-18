@@ -24,9 +24,25 @@ DOCK → SEE → RETRIEVE → UNDERSTAND → REFLECT → PROPOSE → DISCUSS →
 
 ## Agency
 
-AI default: `READ_ONLY`, `DERIVED_WRITE`, `CANONICAL_PROPOSAL`.  
-`CANONICAL_COMMIT` and `EXTERNAL_ACTION` require an explicit human actor.  
-AI cannot grant itself those capabilities.
+**Class:** permission boundary (not EventStore)  
+**Capabilities:** `READ_ONLY` `DERIVED_WRITE` `PROPOSE` (`CANONICAL_PROPOSAL` is the retained identifier) `CANONICAL_COMMIT` `EXTERNAL_ACTION`
+
+```text
+Core = Canonical Truth
+Harbor = Derived Understanding
+AI = Proposal
+Human = Authority
+```
+
+AI default: `READ_ONLY`, `DERIVED_WRITE`, `PROPOSE`.  
+`CANONICAL_COMMIT` and `EXTERNAL_ACTION` require an explicit human `AuthorizationGrant`.  
+AI cannot grant, escalate, or mutate itself into those capabilities.
+
+Denied actions return a structured `AgencyDenial` (`code`, actor, requested capability, granted capabilities, action, target, `stateModified: false`). They do not write Core, EventStore, or derived state.
+
+Authorized canonical actions record actor, authorization, action, target, timestamp, resulting event IDs, and provenance.
+
+Proposal generation (`harbor.propose`, cultivation proposals) is separate from `HarborService.commitCanonical`. Accepting a proposal does **not** mint a grant and does **not** write EventStore.
 
 ## Epistemic rule
 

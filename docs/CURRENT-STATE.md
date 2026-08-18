@@ -17,7 +17,8 @@ See `git rev-parse HEAD`. Last Harbor slice commit is on `main`.
 | Derived query | `4d2003b15d2d4eecc15f5174cc8cec8685d8cfda` | read-only derived query service |
 | Context assembly | `bcf6a82b8a932e551b5ac214985b643924ea6edb` | deterministic ContextPackage |
 | Observed reflection | `5d5b112be9bf16d5657d72c522e98931d35fdc6a` | deterministic OBSERVED reflections |
-| This worktree | `git rev-parse HEAD` | deterministic cultivation proposals |
+| Cultivation proposals | `6804c377acc15fdd52ae47f4b13704c0891ea77c` | deterministic cultivation proposals |
+| This worktree | `git rev-parse HEAD` | explicit agency / permission boundary |
 
 ## LATEST GREEN TAG
 
@@ -35,6 +36,8 @@ No new V3 GREEN tag is minted until a dedicated freeze is authorized.
 - Cultivation accept/reject/defer (human; EventStore only on accept)
 - Harbor epistemic overlays (FACT default for Core cells; confirm → USER_ASSERTED, never silent FACT)
 - Agency defaults; AI cannot self-grant CANONICAL_COMMIT
+- Enforceable agency boundary (`AgencyBoundary`): frozen authority, issued grants, structured denials, audit of authorized canonical/external actions
+- Proposal generation is separate from canonical mutation; accept does not mint CANONICAL_COMMIT
 - Contradiction detect/resolve (human resolution only)
 - Temporal is_true / was_true overlay
 - ContextPackage with inclusion reasons and reproducible key
@@ -81,7 +84,7 @@ Dedicated Harbor+Postgres live gate — not more mock surfaces.
 
 1. Core owns canonical identity, events, replay.
 2. Harbor is V3-DERIVED. Filesystem is not a second EventStore.
-3. AI default: READ_ONLY + DERIVED_WRITE + CANONICAL_PROPOSAL.
+3. AI default: READ_ONLY + DERIVED_WRITE + PROPOSE (`CANONICAL_PROPOSAL` identifier retained). CANONICAL_COMMIT / EXTERNAL_ACTION require an explicit human grant.
 4. Inference never becomes FACT. Human confirm → USER_ASSERTED.
 5. Import cannot skip SCAN → VALIDATE → PREVIEW → CONFLICT → CONFIRM.
 6. Acceptance tests may not be deleted to obtain GREEN (`config/required-tests.json`).

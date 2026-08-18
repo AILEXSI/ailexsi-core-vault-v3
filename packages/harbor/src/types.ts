@@ -28,6 +28,7 @@ export type EpistemicStatus =
 export type Capability =
   | "READ_ONLY"
   | "DERIVED_WRITE"
+  | "PROPOSE"
   | "CANONICAL_PROPOSAL"
   | "CANONICAL_COMMIT"
   | "EXTERNAL_ACTION";
@@ -40,7 +41,8 @@ export type DerivationType =
   | "propose"
   | "contradict"
   | "assemble"
-  | "import";
+  | "import"
+  | "commit";
 
 export interface ArtifactProvenance {
   sourceMemoryIds: string[];

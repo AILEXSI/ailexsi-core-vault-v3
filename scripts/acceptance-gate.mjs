@@ -259,6 +259,36 @@ gate(
   })()
 );
 gate(
+  "HARBOR AGENCY BOUNDARY PRESENT",
+  (() => {
+    const agency = path.join(root, "packages/harbor/src/agency.ts");
+    const boundary = path.join(root, "packages/harbor/src/agency-boundary.ts");
+    const svc = path.join(root, "packages/harbor/src/service.ts");
+    if (!existsSync(agency) || !existsSync(boundary) || !existsSync(svc)) return false;
+    const agencySrc = readFileSync(agency, "utf8");
+    const boundarySrc = readFileSync(boundary, "utf8");
+    const serviceSrc = readFileSync(svc, "utf8");
+    return (
+      agencySrc.includes("PROPOSE") &&
+      agencySrc.includes("CANONICAL_COMMIT") &&
+      agencySrc.includes("EXTERNAL_ACTION") &&
+      agencySrc.includes("issueAuthorization") &&
+      agencySrc.includes("explicit-human-authorization") &&
+      agencySrc.includes("notFromProposalAcceptance") &&
+      !agencySrc.includes("PostgresEventStore") &&
+      !agencySrc.includes("appendEvent") &&
+      boundarySrc.includes("commitCanonical") &&
+      boundarySrc.includes("performExternal") &&
+      boundarySrc.includes("modifyEvidence") &&
+      boundarySrc.includes("convertProposalToCanonical") &&
+      !boundarySrc.includes("PostgresEventStore") &&
+      serviceSrc.includes("this.agency") &&
+      serviceSrc.includes("commitCanonical") &&
+      serviceSrc.includes("Proposal accept is not a grant")
+    );
+  })()
+);
+gate(
   "V2 STRUCTURE PRESENT",
   existsSync(path.join(root, "packages/command-adapter/src/index.ts")) &&
     existsSync(path.join(root, "packages/command-adapter/src/core-runtime.ts")) &&

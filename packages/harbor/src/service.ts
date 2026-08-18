@@ -6,7 +6,7 @@ import {
   inferredRecord,
   rejectRecord,
 } from "./epistemic.js";
-import { assertCapability } from "./agency.js";
+import { AgencyBoundary, type CanonicalCommitRequest, type ExternalActionRequest } from "./agency-boundary.js";
 import { detectContradictions, resolveContradiction } from "./contradiction.js";
 import { temporalFromMemory } from "./temporal.js";
 import {
@@ -70,6 +70,7 @@ export class HarborService {
   readonly imports = new Map<string, ImportSession>();
   readonly provider: HarborProvider;
   readonly derivedIndex: FileDerivedIndex | null;
+  readonly agency = new AgencyBoundary();
 
   private persistSuspended = false;
   private derivedStatus: DerivedIndexStatus = "empty";
@@ -122,7 +123,7 @@ export class HarborService {
    * Never persists. Never touches EventStore.
    */
   queries(actor: HarborActor): DerivedQueryService {
-    assertCapability(actor, "READ_ONLY");
+    this.agency.require(actor, "READ_ONLY", "queries");
     return new DerivedQueryService(() => this.captureQuerySnapshot());
   }
 
@@ -146,7 +147,7 @@ export class HarborService {
   }
 
   snapshot(actor: HarborActor) {
-    assertCapability(actor, "READ_ONLY");
+    this.agency.require(actor, "READ_ONLY", "snapshot");
     return {
       class: HARBOR_CLASS,
       version: HARBOR_VERSION,
@@ -164,6 +165,7 @@ export class HarborService {
       })),
       derivedIndex: this.derivedIndexInfo(),
       cultivation: [...this.cultivation.values()],
+      agency: this.agency.inspect(),
     };
   }
 
@@ -176,7 +178,7 @@ export class HarborService {
   }
 
   scan(memories: MemoryCell[], actor: HarborActor, now = nowIso()) {
-    assertCapability(actor, "DERIVED_WRITE");
+    this.agency.require(actor, "DERIVED_WRITE", "scan");
     this.ensureCoreOverlay(memories, now);
     const found = detectContradictions(
       memories.map((m) => ({
@@ -196,7 +198,7 @@ export class HarborService {
   }
 
   assemble(memories: MemoryCell[], request: ContextAssemblyInput, actor: HarborActor, now = nowIso()) {
-    assertCapability(actor, "READ_ONLY");
+    this.agency.require(actor, "READ_ONLY", "assemble");
     const before = this.epistemic.size;
     this.ensureCoreOverlay(memories, now);
     if (this.epistemic.size !== before) this.persistDerived();
@@ -225,7 +227,7 @@ export class HarborService {
     now = nowIso(),
     catalog?: ContextMemory[]
   ) {
-    assertCapability(actor, "READ_ONLY");
+    this.agency.require(actor, "READ_ONLY", "assembleFromDerived");
     return assembleContextFromQuery({
       query: this.queries(actor),
       request,
@@ -235,7 +237,7 @@ export class HarborService {
   }
 
   reflect(memories: MemoryCell[], actor: HarborActor, now = nowIso()): ReflectionArtifact {
-    assertCapability(actor, "DERIVED_WRITE");
+    this.agency.require(actor, "DERIVED_WRITE", "reflect");
     this.ensureCoreOverlay(memories, now);
     const artifact = reflectOnMemories({
       memories: memories.map((m) => ({
@@ -265,7 +267,7 @@ export class HarborService {
     now = nowIso(),
     opts?: { catalog?: ContextMemory[]; context?: ContextPackage }
   ): ObservedReflection[] {
-    assertCapability(actor, "READ_ONLY");
+    this.agency.require(actor, "READ_ONLY", "reflectObserved");
     return reflectFromQuery({
       query: this.queries(actor),
       actor,
@@ -284,7 +286,7 @@ export class HarborService {
     now = nowIso(),
     opts?: { catalog?: ContextMemory[]; context?: ContextPackage }
   ): CultivationProposal[] {
-    assertCapability(actor, "READ_ONLY");
+    this.agency.require(actor, "READ_ONLY", "cultivate");
     const reflections = this.reflectObserved(actor, now, opts);
     const generated = proposeFromReflections(reflections, actor, now);
     const out: CultivationProposal[] = [];
@@ -313,9 +315,9 @@ export class HarborService {
     extras?: { title?: string; description?: string; now?: string }
   ): CultivationProposal {
     if (status === "ACCEPTED" || status === "EDITED") {
-      assertCapability(actor, "CANONICAL_COMMIT");
+      this.agency.require(actor, "CANONICAL_COMMIT", "decideCultivation", proposalId);
     } else {
-      assertCapability(actor, "DERIVED_WRITE");
+      this.agency.require(actor, "DERIVED_WRITE", "decideCultivation", proposalId);
     }
     if (actor.kind !== "human") {
       throw new Error("Cultivation decision requires a human");
@@ -338,7 +340,7 @@ export class HarborService {
   }
 
   confirm(memoryId: string, actor: HarborActor, now = nowIso()): EpistemicRecord {
-    assertCapability(actor, "DERIVED_WRITE");
+    this.agency.require(actor, "DERIVED_WRITE", "confirm", memoryId);
     const current =
       this.epistemic.get(memoryId) ??
       inferredRecord(memoryId, actor, [], 0.5, now, "Missing overlay — treated as INFERRED, not FACT");
@@ -349,7 +351,7 @@ export class HarborService {
   }
 
   rejectInference(memoryId: string, actor: HarborActor, now = nowIso()): EpistemicRecord {
-    assertCapability(actor, "DERIVED_WRITE");
+    this.agency.require(actor, "DERIVED_WRITE", "rejectInference", memoryId);
     const current = this.epistemic.get(memoryId);
     if (!current) throw new Error(`No epistemic overlay for ${memoryId}`);
     const next = rejectRecord(current, actor, now);
@@ -364,7 +366,7 @@ export class HarborService {
     actor: HarborActor,
     now = nowIso()
   ) {
-    assertCapability(actor, "DERIVED_WRITE");
+    this.agency.require(actor, "DERIVED_WRITE", "resolveContradiction", id);
     const rec = this.contradictions.get(id);
     if (!rec) throw new Error(`Contradiction ${id} not found`);
     const next = resolveContradiction(rec, resolution, actor, now);
@@ -378,7 +380,7 @@ export class HarborService {
     input: { text: string; sourceMemoryIds: string[]; contextIds?: string[] },
     now = nowIso()
   ): Promise<HarborProposal> {
-    assertCapability(actor, "CANONICAL_PROPOSAL");
+    this.agency.require(actor, "PROPOSE", "propose");
     const output = await this.provider.invoke("generateProposal", input.text, input.contextIds ?? []);
     this.invocations.push(
       recordInvocation(this.provider, "generateProposal", input.text, output, input.contextIds ?? [], now)
@@ -427,9 +429,9 @@ export class HarborService {
     const p = this.proposals.get(proposalId);
     if (!p) throw new Error(`Proposal ${proposalId} not found`);
     if (status === "ACCEPTED" || status === "EDITED") {
-      assertCapability(actor, "CANONICAL_COMMIT");
+      this.agency.require(actor, "CANONICAL_COMMIT", "decideProposal", proposalId);
     } else {
-      assertCapability(actor, "DERIVED_WRITE");
+      this.agency.require(actor, "DERIVED_WRITE", "decideProposal", proposalId);
     }
     if (p.status === "ACCEPTED" || p.status === "EDITED") {
       throw new Error("Proposal already accepted");
@@ -447,8 +449,20 @@ export class HarborService {
     return next;
   }
 
+  /**
+   * The only Harbor path that may mutate Core / EventStore.
+   * Requires an explicit human AuthorizationGrant. Proposal accept is not a grant.
+   */
+  commitCanonical<T>(request: CanonicalCommitRequest<T>) {
+    return this.agency.commitCanonical(request);
+  }
+
+  performExternal<T>(request: ExternalActionRequest<T>) {
+    return this.agency.performExternal(request);
+  }
+
   graph(memories: MemoryCell[], actor: HarborActor) {
-    assertCapability(actor, "READ_ONLY");
+    this.agency.require(actor, "READ_ONLY", "graph");
     return buildHarborConnectome({
       memories,
       contradictions: [...this.contradictions.values()],
@@ -458,7 +472,7 @@ export class HarborService {
   }
 
   exportPackage(selectedCanonicalMemoryIds: string[], actor: HarborActor, now = nowIso()): HarborExportPackage {
-    assertCapability(actor, "READ_ONLY");
+    this.agency.require(actor, "READ_ONLY", "exportPackage");
     return buildHarborExport({
       corePin: this.pins.corePin,
       vaultReferenceSha: this.pins.vaultReferenceSha,
@@ -481,14 +495,14 @@ export class HarborService {
   }
 
   beginImport(raw: unknown, actor: HarborActor, now = nowIso()): ImportSession {
-    assertCapability(actor, "DERIVED_WRITE");
+    this.agency.require(actor, "DERIVED_WRITE", "beginImport");
     const session = scanImportPayload(raw, createImportSession(now));
     this.imports.set(session.id, session);
     return session;
   }
 
   validateImport(sessionId: string, actor: HarborActor): ImportSession {
-    assertCapability(actor, "DERIVED_WRITE");
+    this.agency.require(actor, "DERIVED_WRITE", "validateImport", sessionId);
     const cur = this.requireImport(sessionId);
     const next = validateImportSession(cur, this.pins.corePin);
     this.imports.set(sessionId, next);
@@ -496,7 +510,7 @@ export class HarborService {
   }
 
   previewImport(sessionId: string, actor: HarborActor): ImportSession {
-    assertCapability(actor, "READ_ONLY");
+    this.agency.require(actor, "READ_ONLY", "previewImport", sessionId);
     const next = previewImportSession(this.requireImport(sessionId));
     this.imports.set(sessionId, next);
     return next;
@@ -508,14 +522,14 @@ export class HarborService {
     actor: HarborActor,
     now = nowIso()
   ): ImportSession {
-    assertCapability(actor, "DERIVED_WRITE");
+    this.agency.require(actor, "DERIVED_WRITE", "detectImportConflicts", sessionId);
     const next = conflictImportSession(this.requireImport(sessionId), existing, actor, now);
     this.imports.set(sessionId, next);
     return next;
   }
 
   confirmImport(sessionId: string, actor: HarborActor, now = nowIso()): ImportSession {
-    assertCapability(actor, "DERIVED_WRITE");
+    this.agency.require(actor, "DERIVED_WRITE", "confirmImport", sessionId);
     if (actor.kind !== "human") {
       throw new Error("Import WRITE requires explicit human confirmation");
     }
@@ -542,7 +556,7 @@ export class HarborService {
   }
 
   rejectImport(sessionId: string, actor: HarborActor): ImportSession {
-    assertCapability(actor, "DERIVED_WRITE");
+    this.agency.require(actor, "DERIVED_WRITE", "rejectImport", sessionId);
     const cur = this.requireImport(sessionId);
     const next: ImportSession = { ...cur, stage: "REJECTED" };
     this.imports.set(sessionId, next);
@@ -554,7 +568,7 @@ export class HarborService {
    * Durable files are removed; canonical replay is required to rebuild.
    */
   clearDerived(actor: HarborActor): { class: typeof HARBOR_CLASS; status: DerivedIndexStatus } {
-    assertCapability(actor, "DERIVED_WRITE");
+    this.agency.require(actor, "DERIVED_WRITE", "clearDerived");
     this.epistemic.clear();
     this.contradictions.clear();
     this.reflections.clear();
@@ -576,7 +590,7 @@ export class HarborService {
    * snapshot is written atomically; a leftover marker is a known state.
    */
   rebuildFromCanonical(memories: MemoryCell[], actor: HarborActor, now = nowIso()) {
-    assertCapability(actor, "DERIVED_WRITE");
+    this.agency.require(actor, "DERIVED_WRITE", "rebuildFromCanonical");
     this.persistSuspended = true;
     try {
       this.derivedIndex?.markRebuilding();

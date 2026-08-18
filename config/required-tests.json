@@ -13,6 +13,7 @@
     "tests/unit/harbor-context-assembly.test.ts",
     "tests/unit/harbor-reflection-engine.test.ts",
     "tests/unit/harbor-cultivation-proposals.test.ts",
+    "tests/unit/harbor-agency-boundary.test.ts",
     "tests/integration/ai-writeback-safety.test.ts"
   ]
 }

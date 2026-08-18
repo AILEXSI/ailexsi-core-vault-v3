@@ -53,19 +53,19 @@ function send(
   res.end(json);
 }
 
-function readChannelToken(req: http.IncomingMessage): string | undefined {
-  const header = req.headers["x-channel-token"];
+function readChannelToken(headers: http.IncomingHttpHeaders): string | undefined {
+  const header = headers["x-channel-token"];
   if (typeof header === "string" && header.length > 0) return header;
-  const auth = req.headers.authorization;
+  const auth = headers.authorization;
   if (typeof auth === "string" && auth.startsWith("Bearer ")) {
     return auth.slice("Bearer ".length);
   }
   return undefined;
 }
 
-function requireChannelToken(req: http.IncomingMessage): boolean {
+export function requireChannelToken(headers: http.IncomingHttpHeaders): boolean {
   const expected = process.env.DESKTOP_HOST_TOKEN;
-  const got = readChannelToken(req);
+  const got = readChannelToken(headers);
   return Boolean(expected && got && got === expected);
 }
 
@@ -89,6 +89,16 @@ const COMMANDS = new Set<DesktopMemoryCommand>([
   "cultivation.proposal.defer",
   "cultivation.proposal.accept",
 ]);
+
+/** Status for a POST /commands/* request before invoke. HTTP/JSON cannot issue grants. */
+export function bridgeCommandStatus(
+  command: string,
+  headers: http.IncomingHttpHeaders
+): 401 | 404 | 200 {
+  if (!requireChannelToken(headers)) return 401;
+  if (command === "grant.create" || !COMMANDS.has(command as DesktopMemoryCommand)) return 404;
+  return 200;
+}
 
 /**
  * Start HTTP bridge. Starts DesktopHost once (long-lived) with given options.
@@ -148,18 +158,19 @@ export async function startDesktopBridgeServer(
       }
 
       if (req.method === "POST" && url.pathname.startsWith("/commands/")) {
-        if (!requireChannelToken(req)) {
+        const command = url.pathname.slice("/commands/".length);
+        const status = bridgeCommandStatus(command, req.headers);
+        if (status === 401) {
           send(res, 401, { ok: false, error: "missing channel token" });
           return;
         }
-        const command = url.pathname.slice("/commands/".length) as DesktopMemoryCommand;
-        if (!COMMANDS.has(command)) {
+        if (status === 404) {
           send(res, 404, { error: `unknown command: ${command}` });
           return;
         }
         const raw = await readBody(req);
         const args = raw ? JSON.parse(raw) : {};
-        const result = await invokeDesktopCommand(command, args);
+        const result = await invokeDesktopCommand(command as DesktopMemoryCommand, args);
         send(res, 200, { ok: true, command, result });
         return;
       }

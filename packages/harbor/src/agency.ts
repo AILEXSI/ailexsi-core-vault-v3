@@ -311,6 +311,18 @@ export function issueAuthorizationOn(
       }
     );
   }
+  if (spec.grantedTo.id !== snap.id) {
+    throw new AgencyDeniedError(
+      snap,
+      spec.capability,
+      "AuthorizationGrant grantedTo must be the issuing Session Actor",
+      {
+        code: "GRANT_SUBJECT_MISMATCH",
+        action: spec.action,
+        target: spec.target,
+      }
+    );
+  }
   evaluateAccess(snap, spec.capability, spec.action, spec.target);
   const grant: AuthorizationGrant = Object.freeze({
     grantId: randomUUID(),

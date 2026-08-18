@@ -6,6 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { HarborActorKind } from "./types.js";
+import type { CanonicalActionRecord } from "./agency.js";
 
 export interface DurableGrantRecord {
   grantId: string;
@@ -63,6 +64,7 @@ function identityEqual(stored: DurableGrantRecord, grant: GrantIdentity): boolea
 
 export class DurableGrantRegistry {
   private records: DurableGrantRecord[] = [];
+  private actions: CanonicalActionRecord[] = [];
 
   constructor(readonly persistDir?: string) {
     if (persistDir) this.restore();
@@ -110,6 +112,15 @@ export class DurableGrantRegistry {
     this.persist();
   }
 
+  recordCanonicalAction(record: CanonicalActionRecord): void {
+    this.actions.push(structuredClone(record));
+    this.persist();
+  }
+
+  canonicalActions(): CanonicalActionRecord[] {
+    return this.actions.map((r) => structuredClone(r));
+  }
+
   /**
    * Restore history from persistDir. Does not issueAuthorization. Does not mint ids.
    */
@@ -118,10 +129,15 @@ export class DurableGrantRegistry {
     const file = path.join(this.persistDir, REGISTRY_FILE);
     if (!existsSync(file)) {
       this.records = [];
+      this.actions = [];
       return;
     }
-    const raw = JSON.parse(readFileSync(file, "utf8")) as { grants?: DurableGrantRecord[] };
+    const raw = JSON.parse(readFileSync(file, "utf8")) as {
+      grants?: DurableGrantRecord[];
+      records?: CanonicalActionRecord[];
+    };
     this.records = Array.isArray(raw.grants) ? raw.grants.map(cloneRecord) : [];
+    this.actions = Array.isArray(raw.records) ? raw.records.map((r) => structuredClone(r)) : [];
   }
 
   private persist(): void {
@@ -129,7 +145,7 @@ export class DurableGrantRegistry {
     mkdirSync(this.persistDir, { recursive: true });
     const file = path.join(this.persistDir, REGISTRY_FILE);
     const tmp = `${file}.tmp`;
-    const body = JSON.stringify({ grants: this.records }, null, 2) + "\n";
+    const body = JSON.stringify({ grants: this.records, records: this.actions }, null, 2) + "\n";
     writeFileSync(tmp, body, "utf8");
     renameSync(tmp, file);
   }

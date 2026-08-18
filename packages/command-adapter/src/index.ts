@@ -37,6 +37,8 @@ export {
 export {
   startDesktopBridgeServer,
   DEFAULT_DESKTOP_HOST_PORT,
+  requireChannelToken,
+  bridgeCommandStatus,
   type DesktopBridgeServer,
 } from "./desktop-bridge-server.js";
 export {

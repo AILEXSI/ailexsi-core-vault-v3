@@ -144,14 +144,22 @@ export class DesktopHost {
       vaultReferenceSha: "061e444389090c54e431b0e8243e82764f2c198e",
       persistDir: persistDir || undefined,
     });
-    if (options.actor) {
+    if (options.actor && !this.sessionActor) {
       this.sessionActor = sealActor(options.actor);
     }
     this.startGeneration += 1;
   }
 
-  /** Bind the Session Actor. Request actorKind/actorId are never the actor. */
+  /** Bind the Session Actor once. Request actorKind/actorId are never the actor. */
   attachActor(actor: HarborActor): void {
+    if (this.sessionActor) {
+      throw new AgencyDeniedError(
+        this.sessionActor,
+        "CANONICAL_COMMIT",
+        "Session Actor already attached",
+        { code: "PERMISSION_ESCALATION_BLOCKED", action: "session" }
+      );
+    }
     this.sessionActor = sealActor(actor);
   }
 
@@ -445,8 +453,6 @@ export class DesktopHost {
   }
 
   async cultivationProposalAccept(args: Record<string, unknown>) {
-    const rt = this.requireRuntime();
-    this.commandCount += 1;
     const actor = this.requireSessionActor();
     if (actor.kind !== "human") {
       throw new AgencyDeniedError(
@@ -456,6 +462,8 @@ export class DesktopHost {
         { code: "HUMAN_AUTHORIZATION_REQUIRED", action: "cultivation.proposal.accept" }
       );
     }
+    const rt = this.requireRuntime();
+    this.commandCount += 1;
     const proposalId = String(args.proposalId ?? "");
     return this.commitThroughAgency(actor, "cultivation.accept", proposalId, async () => {
       const { proposal, draft } = this.requireCultivation().acceptCanonical(

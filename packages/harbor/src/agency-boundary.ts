@@ -56,6 +56,9 @@ export class AgencyBoundary {
 
   constructor(registry: DurableGrantRegistry = getDefaultGrantRegistry()) {
     this.registry = registry;
+    if (registry.persistDir) {
+      this.records.push(...registry.canonicalActions());
+    }
   }
 
   issueAuthorization(granter: HarborActor, spec: IssueAuthorizationSpec): AuthorizationGrant {
@@ -132,6 +135,7 @@ export class AgencyBoundary {
       now: request.now,
     });
     this.records.push(record);
+    this.registry.recordCanonicalAction(record);
     return { result: executed.result, record };
   }
 
@@ -150,6 +154,7 @@ export class AgencyBoundary {
       now: request.now,
     });
     this.records.push(record);
+    this.registry.recordCanonicalAction(record);
     return { result, record };
   }
 

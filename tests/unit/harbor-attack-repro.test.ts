@@ -7,7 +7,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { MemoryCommandAdapter, asProductionStore } from "@ailexsi/v2-command-adapter";
+import {
+  MemoryCommandAdapter,
+  asProductionStore,
+  DesktopHost,
+  bridgeCommandStatus,
+} from "@ailexsi/v2-command-adapter";
 import { InMemoryEventStore } from "@ailexsi/v2-test-kit";
 import { MemoryDomain } from "@ailexsi/memory";
 import {
@@ -368,6 +373,220 @@ describe("Harbor attack repros fail closed", () => {
       );
       expect(err.denial.code).toBe("GRANT_INVALID");
       expect(harbor.agency.issuedGrantCount()).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("A: bridge memory.create without token is 401", () => {
+    const prev = process.env.DESKTOP_HOST_TOKEN;
+    process.env.DESKTOP_HOST_TOKEN = "unit-channel-token";
+    try {
+      expect(bridgeCommandStatus("memory.create", {})).toBe(401);
+      expect(bridgeCommandStatus("memory.create", { "x-channel-token": "wrong" })).toBe(401);
+      expect(bridgeCommandStatus("grant.create", { "x-channel-token": "unit-channel-token" })).toBe(
+        404
+      );
+      expect(
+        bridgeCommandStatus("memory.create", { "x-channel-token": "unit-channel-token" })
+      ).toBe(200);
+    } finally {
+      if (prev === undefined) delete process.env.DESKTOP_HOST_TOKEN;
+      else process.env.DESKTOP_HOST_TOKEN = prev;
+    }
+  });
+
+  it("B: session AI + actorKind human ACCEPT is denied", async () => {
+    const host = new DesktopHost();
+    host.attachActor(AI);
+    await expect(
+      host.cultivationProposalAccept({
+        actorKind: "human",
+        actorId: "martin",
+        sessionId: "s",
+        proposalId: "p",
+      })
+    ).rejects.toMatchObject({ denial: { code: "HUMAN_AUTHORIZATION_REQUIRED" } });
+    expect(host.getSessionActor()?.kind).toBe("ai");
+    expect(host.getSessionActor()?.id).not.toBe(MARTIN.id);
+    expect(() => host.attachActor(MARTIN)).toThrow(AgencyDeniedError);
+  });
+
+  it("C: martin grant used by lena is GRANT_SUBJECT_MISMATCH", async () => {
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const grant = issueAuthorization(MARTIN, {
+      grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
+      capability: "CANONICAL_COMMIT",
+      action: "memory.create",
+      target: "c-target",
+      now: NOW,
+    });
+    const err = await denialOfAsync(() =>
+      harbor.commitCanonical({
+        actor: LENA,
+        grant,
+        action: "memory.create",
+        target: "c-target",
+        execute: async () => ({ result: null, eventIds: [] }),
+      })
+    );
+    expect(err.denial.code).toBe("GRANT_SUBJECT_MISMATCH");
+  });
+
+  it("D: connectome-relation create outside commitRelation is rejected", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const grant = issueAuthorization(MARTIN, {
+      grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
+      capability: "CANONICAL_COMMIT",
+      action: "memory.create",
+      target: "d-rel",
+      now: NOW,
+    });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const err = await denialOfAsync(() =>
+      harbor.commitCanonical({
+        actor: MARTIN,
+        grant,
+        action: "memory.create",
+        target: "d-rel",
+        execute: async () => {
+          await adapter.create({
+            content: {
+              type: "structured",
+              structuredData: {
+                kind: "connectome-relation",
+                schema: "harbor-connectome-v1",
+                from: "a",
+                to: "b",
+                type: "SUPPORTS",
+                evidenceMemoryIds: ["c"],
+              },
+            },
+            provenance: provenance(),
+            idempotencyKey: randomUUID(),
+          });
+          return { result: null, eventIds: [] };
+        },
+      })
+    );
+    expect(err.denial.code).toBe("EVENTSTORE_WRITE_FORBIDDEN");
+    expect(store.count()).toBe(0);
+  });
+
+  it("E: traverse tea/coffee/unrelated is found:false hops:[]", async () => {
+    const store = new InMemoryEventStore();
+    const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+    const tea = await authorizedCreate(adapter, {
+      content: { type: "text", text: "user prefers tea" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const coffee = await authorizedCreate(adapter, {
+      content: { type: "text", text: "user prefers coffee" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const unrelated = await authorizedCreate(adapter, {
+      content: { type: "text", text: "unrelated note" },
+      provenance: provenance(),
+      idempotencyKey: randomUUID(),
+    });
+    const harbor = new HarborService({ corePin: CORE_PIN, vaultReferenceSha: "v" });
+    const cells = [tea, coffee, unrelated];
+    harbor.scan(cells, MARTIN, NOW);
+    const teaCoffee = harbor.traverseConnectome(cells, tea.identity.id, coffee.identity.id, MARTIN);
+    expect(teaCoffee.found).toBe(false);
+    expect(teaCoffee.hops).toEqual([]);
+    const teaUnrelated = harbor.traverseConnectome(
+      cells,
+      tea.identity.id,
+      unrelated.identity.id,
+      MARTIN
+    );
+    expect(teaUnrelated.found).toBe(false);
+    expect(teaUnrelated.hops).toEqual([]);
+  });
+
+  it("F: reopen persistDir issued count unchanged; mutated grant record rejected", async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "grant-f-"));
+    try {
+      const first = HarborService.open({ corePin: CORE_PIN, vaultReferenceSha: "v", persistDir: dir });
+      const grant = first.agency.issueAuthorization(MARTIN, {
+        grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
+        capability: "CANONICAL_COMMIT",
+        action: "memory.create",
+        target: "f-target",
+        now: NOW,
+      });
+      const issued = first.agency.issuedGrantCount();
+      const reopened = HarborService.open({ corePin: CORE_PIN, vaultReferenceSha: "v", persistDir: dir });
+      expect(reopened.agency.issuedGrantCount()).toBe(issued);
+      const mutated = { ...grant, grantId: randomUUID() };
+      expect(reopened.agency.isIssuedGrant(mutated)).toBe(false);
+      const err = await denialOfAsync(() =>
+        reopened.commitCanonical({
+          actor: MARTIN,
+          grant: mutated,
+          action: "memory.create",
+          target: "f-target",
+          execute: async () => ({ result: null, eventIds: [] }),
+        })
+      );
+      expect(err.denial.code).toBe("GRANT_INVALID");
+      expect(reopened.agency.issuedGrantCount()).toBe(issued);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("G: session human + own grant + commitCanonical writes one Memory cell and stores the record", async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "grant-g-"));
+    try {
+      const store = new InMemoryEventStore();
+      const adapter = new MemoryCommandAdapter({ store, environment: "test" });
+      const harbor = HarborService.open({
+        corePin: CORE_PIN,
+        vaultReferenceSha: "v",
+        persistDir: dir,
+      });
+      const host = new DesktopHost();
+      host.attachActor(MARTIN);
+      expect(host.getSessionActor()?.id).toBe(MARTIN.id);
+      const key = randomUUID();
+      const grant = harbor.agency.issueAuthorization(host.getSessionActor()!, {
+        grantedTo: { id: MARTIN.id, kind: MARTIN.kind },
+        capability: "CANONICAL_COMMIT",
+        action: "memory.create",
+        target: key,
+        now: NOW,
+      });
+      const { result, record } = await harbor.commitCanonical({
+        actor: host.getSessionActor()!,
+        grant,
+        action: "memory.create",
+        target: key,
+        now: NOW,
+        execute: async () => {
+          const cell = await adapter.create({
+            content: { type: "text", text: "canonical session write" },
+            provenance: provenance(),
+            idempotencyKey: key,
+            createdBy: host.getSessionActor()!.id,
+          });
+          return { result: cell, eventIds: store.all().map((e) => e.event.eventId) };
+        },
+      });
+      expect(store.count()).toBe(1);
+      expect(result.content).toMatchObject({ type: "text", text: "canonical session write" });
+      expect(record.actor).toEqual({ id: MARTIN.id, kind: "human" });
+      expect((store.all()[0]!.event.payload as { createdBy?: string }).createdBy).toBe(MARTIN.id);
+      expect(harbor.agency.inspectCanonicalActions()).toHaveLength(1);
+      expect(harbor.agency.inspectCanonicalActions()[0]!.authorization.grantId).toBe(grant.grantId);
+      const reopened = HarborService.open({ corePin: CORE_PIN, vaultReferenceSha: "v", persistDir: dir });
+      expect(reopened.agency.issuedGrantCount()).toBe(1);
+      expect(reopened.agency.inspectCanonicalActions()).toHaveLength(1);
+      expect(reopened.agency.inspectCanonicalActions()[0]!.recordId).toBe(record.recordId);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

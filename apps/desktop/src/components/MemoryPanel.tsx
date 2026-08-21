@@ -3,15 +3,19 @@ import {
   archiveMemory,
   bridgeHealth,
   createMemory,
+  fetchSessionStatus,
   getHistory,
   getMemory,
+  issueAuthorization,
   listMemories,
   restoreMemory,
   saveAcceptanceEvidence,
   updateMemory,
+  type AuthorityGrant,
   type MemoryDetailView,
   type MemoryListItem,
   type MemoryVersionRow,
+  type SessionStatus,
 } from "../ipc/memory-client";
 
 export function MemoryPanel() {
@@ -27,6 +31,10 @@ export function MemoryPanel() {
   const [busy, setBusy] = useState(false);
   const [store, setStore] = useState<string | null>(null);
   const [filterEvidence, setFilterEvidence] = useState(false);
+  const [session, setSession] = useState<SessionStatus | null>(null);
+  const [grant, setGrant] = useState<AuthorityGrant | null>(null);
+  const [grantState, setGrantState] = useState<"none" | "issued" | "consumed">("none");
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
 
   const parseTags = (raw: string) =>
     raw
@@ -40,6 +48,11 @@ export function MemoryPanel() {
       setStatus("DesktopHost connected");
       setStore(h.store);
       setError(null);
+      try {
+        setSession(await fetchSessionStatus());
+      } catch {
+        setSession({ bound: false, actor: null, note: "Session status unavailable" });
+      }
     } else {
       setStatus("DesktopHost offline");
       setStore(null);
@@ -67,9 +80,29 @@ export function MemoryPanel() {
     })();
   }, [refreshHealth, refreshList]);
 
+  async function onAuthorizeCreate() {
+    if (!text.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const key = crypto.randomUUID();
+      const issued = await issueAuthorization("memory.create", key);
+      setPendingKey(key);
+      setGrant(issued);
+      setGrantState("issued");
+    } catch (err) {
+      setGrant(null);
+      setPendingKey(null);
+      setGrantState("none");
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() || !grant || !pendingKey) return;
     setBusy(true);
     setError(null);
     try {
@@ -77,13 +110,19 @@ export function MemoryPanel() {
       const view = await createMemory(text.trim(), {
         tags: tags.length ? tags : undefined,
         project: "ailexsi-core-vault-v2",
+        grant,
+        idempotencyKey: pendingKey,
       });
       setText("");
+      setGrantState("consumed");
+      setGrant(null);
+      setPendingKey(null);
       setSelected(view);
       setEditText(view.content.value?.text ?? "");
       setHistory(await getHistory(view.id));
       await refreshList();
       await refreshHealth();
+      setGrantState("none");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -134,10 +173,12 @@ export function MemoryPanel() {
     setError(null);
     try {
       const tags = selected.context?.value?.tags;
+      const issued = await issueAuthorization("memory.update", selected.id);
       const view = await updateMemory(selected.id, editText.trim(), {
         changeReason: "ui-update",
         tags,
         project: selected.context?.value?.project as string | undefined,
+        grant: issued,
       });
       setSelected(view);
       setEditText(view.content.value?.text ?? "");
@@ -155,7 +196,8 @@ export function MemoryPanel() {
     setBusy(true);
     setError(null);
     try {
-      const view = await archiveMemory(selected.id);
+      const issued = await issueAuthorization("memory.archive", selected.id);
+      const view = await archiveMemory(selected.id, "ui-archive", issued);
       setSelected(view);
       setHistory(await getHistory(view.id));
       await refreshList();
@@ -171,7 +213,8 @@ export function MemoryPanel() {
     setBusy(true);
     setError(null);
     try {
-      const view = await restoreMemory(selected.id);
+      const issued = await issueAuthorization("memory.restore", selected.id);
+      const view = await restoreMemory(selected.id, "ui-restore", issued);
       setSelected(view);
       setHistory(await getHistory(view.id));
       await refreshList();
@@ -206,6 +249,30 @@ export function MemoryPanel() {
           ) : null}
         </p>
         {error && <p className="error">{error}</p>}
+      </div>
+
+      <div className="card">
+        <h2>Authority</h2>
+        <p className="muted">
+          Session:{" "}
+          <strong>{session?.bound ? "bound" : "unbound"}</strong>
+          {session?.actor ? (
+            <>
+              {" "}
+              · {session.actor.kind}:{session.actor.id}
+            </>
+          ) : null}
+        </p>
+        <p className="muted">{session?.note}</p>
+        <p className="muted">
+          Grant: <strong>{grantState}</strong>
+          {grant ? (
+            <>
+              {" "}
+              · {grant.action} @ {grant.target}
+            </>
+          ) : null}
+        </p>
       </div>
 
       <div className="card">
@@ -246,8 +313,15 @@ export function MemoryPanel() {
             placeholder="tags (comma/space): project evidence …"
             disabled={busy}
           />
-          <button type="submit" disabled={busy || !text.trim()}>
-            {busy ? "Saving…" : "Create via Core"}
+          <button
+            type="button"
+            disabled={busy || !text.trim() || !session?.bound}
+            onClick={() => void onAuthorizeCreate()}
+          >
+            Authorize create
+          </button>
+          <button type="submit" disabled={busy || !text.trim() || grantState !== "issued"}>
+            {busy ? "Saving…" : "Create (persist)"}
           </button>
         </form>
       </div>

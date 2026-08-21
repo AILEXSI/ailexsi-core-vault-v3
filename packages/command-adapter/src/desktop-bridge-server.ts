@@ -88,9 +88,11 @@ const COMMANDS = new Set<DesktopMemoryCommand>([
   "cultivation.proposal.reject",
   "cultivation.proposal.defer",
   "cultivation.proposal.accept",
+  "session.status",
+  "authorization.issue",
 ]);
 
-/** Status for a POST /commands/* request before invoke. HTTP/JSON cannot issue grants. */
+/** Status for a POST /commands/* request before invoke. HTTP/JSON cannot mint grant.create. */
 export function bridgeCommandStatus(
   command: string,
   headers: http.IncomingHttpHeaders

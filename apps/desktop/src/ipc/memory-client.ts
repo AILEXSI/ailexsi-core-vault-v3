@@ -175,16 +175,56 @@ export async function memoryCommand(
   return hostCommand(command, args);
 }
 
+export type AuthorityGrant = {
+  grantId: string;
+  capability: "CANONICAL_COMMIT" | "EXTERNAL_ACTION";
+  grantedBy: { id: string; kind: "human" };
+  grantedTo: { id: string; kind: string };
+  action: string;
+  target: string;
+  issuedAt: string;
+  provenance: { source: "explicit-human-authorization"; notFromProposalAcceptance: true };
+};
+
+export type SessionStatus = {
+  bound: boolean;
+  actor: { id: string; kind: string } | null;
+  note: string;
+};
+
 export type CreateMemoryOptions = {
   tags?: string[];
   project?: string;
   createdBy?: string;
+  grant: AuthorityGrant;
+  idempotencyKey: string;
 };
+
+export async function fetchSessionStatus(): Promise<SessionStatus> {
+  return (await hostCommand("session.status", {})) as SessionStatus;
+}
+
+export async function issueAuthorization(
+  action: string,
+  target: string
+): Promise<AuthorityGrant> {
+  return (await hostCommand("authorization.issue", {
+    action,
+    target,
+    capability: "CANONICAL_COMMIT",
+  })) as AuthorityGrant;
+}
 
 export async function createMemory(
   text: string,
-  opts: CreateMemoryOptions = {}
+  opts: CreateMemoryOptions
 ): Promise<MemoryDetailView> {
+  if (!opts.grant) {
+    throw new Error("canonical mutation requires an already-issued AuthorizationGrant");
+  }
+  if (!opts.idempotencyKey) {
+    throw new Error("memory.create requires an explicit target/idempotencyKey");
+  }
   const now = new Date().toISOString();
   const tags = opts.tags?.length ? opts.tags : undefined;
   const project = opts.project;
@@ -203,7 +243,9 @@ export async function createMemory(
       parentMemoryIds: [],
       evidenceIds: [],
     },
-    createdBy: opts.createdBy ?? "v2-desktop-ui",
+    createdBy: opts.createdBy,
+    grant: opts.grant,
+    idempotencyKey: opts.idempotencyKey,
   })) as MemoryDetailView;
 }
 
@@ -222,8 +264,16 @@ export async function listMemories(): Promise<MemoryListItem[]> {
 export async function updateMemory(
   memoryId: string,
   text: string,
-  opts: { changeReason?: string; tags?: string[]; project?: string } = {}
+  opts: {
+    changeReason?: string;
+    tags?: string[];
+    project?: string;
+    grant: AuthorityGrant;
+  }
 ): Promise<MemoryDetailView> {
+  if (!opts.grant) {
+    throw new Error("canonical mutation requires an already-issued AuthorizationGrant");
+  }
   return (await memoryCommand("memory.update", {
     memoryId,
     content: { type: "text", text },
@@ -232,29 +282,37 @@ export async function updateMemory(
       opts.tags || opts.project
         ? { tags: opts.tags, project: opts.project }
         : undefined,
-    createdBy: "v2-desktop-ui",
+    grant: opts.grant,
   })) as MemoryDetailView;
 }
 
 export async function archiveMemory(
   memoryId: string,
-  reason = "ui-archive"
+  reason = "ui-archive",
+  grant?: AuthorityGrant
 ): Promise<MemoryDetailView> {
+  if (!grant) {
+    throw new Error("canonical mutation requires an already-issued AuthorizationGrant");
+  }
   return (await memoryCommand("memory.archive", {
     memoryId,
     reason,
-    createdBy: "v2-desktop-ui",
+    grant,
   })) as MemoryDetailView;
 }
 
 export async function restoreMemory(
   memoryId: string,
-  reason = "ui-restore"
+  reason = "ui-restore",
+  grant?: AuthorityGrant
 ): Promise<MemoryDetailView> {
+  if (!grant) {
+    throw new Error("canonical mutation requires an already-issued AuthorizationGrant");
+  }
   return (await memoryCommand("memory.restore", {
     memoryId,
     reason,
-    createdBy: "v2-desktop-ui",
+    grant,
   })) as MemoryDetailView;
 }
 
@@ -291,10 +349,13 @@ export async function saveAcceptanceEvidence(options?: {
   if (options?.extra?.trim()) {
     lines.push("", options.extra.trim());
   }
+  const idempotencyKey = crypto.randomUUID();
+  const grant = await issueAuthorization("memory.create", idempotencyKey);
   return createMemory(lines.join("\n"), {
     tags: ["evidence", "acceptance"],
     project: "ailexsi-core-vault-v2",
-    createdBy: "v2-acceptance-evidence",
+    grant,
+    idempotencyKey,
   });
 }
 

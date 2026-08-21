@@ -88,7 +88,9 @@ export type DesktopMemoryCommand =
   | "harbor.connectome.propose"
   | "harbor.connectome.decide"
   | "harbor.connectome.traverse"
-  | "harbor.connectome.explain";
+  | "harbor.connectome.explain"
+  | "session.status"
+  | "authorization.issue";
 
 export interface DesktopHostStartOptions extends CreateCoreRuntimeOptions {
   /** Optional fixed connection string (tests). */
@@ -176,6 +178,43 @@ export class DesktopHost {
   /** Session Actor for this host. Null when none is attached. */
   getSessionActor(): HarborActor | null {
     return this.sessionActor;
+  }
+
+  sessionStatus(): {
+    bound: boolean;
+    actor: { id: string; kind: HarborActor["kind"] } | null;
+    note: string;
+  } {
+    if (!this.sessionActor) {
+      return {
+        bound: false,
+        actor: null,
+        note: "No Session Actor — issue and mutate fail closed",
+      };
+    }
+    return {
+      bound: true,
+      actor: { id: this.sessionActor.id, kind: this.sessionActor.kind },
+      note: "Session Actor is identity, not write authority",
+    };
+  }
+
+  /**
+   * Explicit grant for a defined action/target. Does not mutate Core.
+   * grantedTo is always the bound Session Actor.
+   */
+  authorizationIssue(args: {
+    action: string;
+    target: string;
+    capability?: IssueAuthorizationSpec["capability"];
+  }): AuthorizationGrant {
+    const actor = this.requireSessionActor();
+    return this.issueAuthorization({
+      grantedTo: { id: actor.id, kind: actor.kind },
+      capability: args.capability ?? "CANONICAL_COMMIT",
+      action: String(args.action ?? ""),
+      target: String(args.target ?? ""),
+    });
   }
 
   /**
@@ -997,6 +1036,14 @@ export async function invokeDesktopCommand(
 ): Promise<unknown> {
   const host = getDesktopHost();
   switch (command) {
+    case "session.status":
+      return host.sessionStatus();
+    case "authorization.issue":
+      return host.authorizationIssue({
+        action: String(args.action ?? ""),
+        target: String(args.target ?? ""),
+        capability: args.capability,
+      });
     case "memory.create":
       return host.memoryCreate(args as Parameters<DesktopHost["memoryCreate"]>[0]);
     case "memory.get":

@@ -42,7 +42,12 @@ export type DesktopHostCommandName =
   | "harbor.query.contradictions"
   | "harbor.query.provenance"
   | "session.status"
-  | "authorization.issue";
+  | "authorization.issue"
+  | "dock.status"
+  | "dock.discover"
+  | "dock.preview"
+  | "dock.segments"
+  | "dock.candidates";
 
 /** @deprecated alias — Memory-only surface retained for callers */
 export type MemoryCommandName =

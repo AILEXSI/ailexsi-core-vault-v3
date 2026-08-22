@@ -41,6 +41,18 @@ import {
   type IssueAuthorizationSpec,
 } from "@ailexsi/v3-harbor";
 import { bindAgencySessionActor } from "../../harbor/src/session-bind.js";
+import {
+  candidatesFromSegments,
+  defaultDockIndexDir,
+  discover,
+  itemFromRelative,
+  loadDockIndex,
+  preview as dockPreview,
+  saveDockIndex,
+  segment,
+  type DockDiscoverResult,
+  type DockStatus,
+} from "../../dock/src/index.js";
 
 export type DesktopMemoryCommand =
   | "memory.create"
@@ -90,7 +102,12 @@ export type DesktopMemoryCommand =
   | "harbor.connectome.traverse"
   | "harbor.connectome.explain"
   | "session.status"
-  | "authorization.issue";
+  | "authorization.issue"
+  | "dock.status"
+  | "dock.discover"
+  | "dock.preview"
+  | "dock.segments"
+  | "dock.candidates";
 
 export interface DesktopHostStartOptions extends CreateCoreRuntimeOptions {
   /** Optional fixed connection string (tests). */
@@ -114,6 +131,7 @@ export class DesktopHost {
     "Cultivation foundation mock proposal text"
   );
   private sessionActor: HarborActor | null = null;
+  private lastDock: DockDiscoverResult | null = null;
 
   /** True when a CoreRuntime is retained for process lifetime. */
   get isRunning(): boolean {
@@ -178,6 +196,56 @@ export class DesktopHost {
   /** Session Actor for this host. Null when none is attached. */
   getSessionActor(): HarborActor | null {
     return this.sessionActor;
+  }
+
+  dockStatus(): DockStatus {
+    const cached = this.lastDock ?? loadDockIndex();
+    return {
+      ready: true,
+      lastSource: cached?.source ?? null,
+      itemCount: cached?.items.length ?? 0,
+      note: "LOCAL SOURCE → DISCOVER → PREVIEW → SEGMENT → DERIVED CANDIDATE. Not Memory. Not EventStore. Not Grant.",
+    };
+  }
+
+  async dockDiscover(args: { rootPath: string; recursive?: boolean }): Promise<DockDiscoverResult> {
+    const result = await discover(String(args.rootPath ?? ""), {
+      recursive: args.recursive !== false,
+    });
+    this.lastDock = result;
+    try {
+      saveDockIndex(result, defaultDockIndexDir());
+    } catch {
+      /* persist is optional */
+    }
+    return result;
+  }
+
+  async dockPreview(args: { rootPath: string; relativePath: string; maxBytes?: number }) {
+    const { item } = await itemFromRelative(String(args.rootPath ?? ""), String(args.relativePath ?? ""));
+    const text = await dockPreview(String(args.rootPath ?? ""), item, args.maxBytes);
+    return { item, text, note: "Bounded preview. Not recorded Memory." };
+  }
+
+  async dockSegments(args: { rootPath: string; relativePath: string }) {
+    const { item } = await itemFromRelative(String(args.rootPath ?? ""), String(args.relativePath ?? ""));
+    if (item.kind !== "text") {
+      return { item, segments: [], note: "Binary/unsupported: metadata only. Not Memory." };
+    }
+    const text = await dockPreview(String(args.rootPath ?? ""), item);
+    const segments = segment(item, text ?? "");
+    return { item, segments, note: "Segments are not facts." };
+  }
+
+  async dockCandidates(args: { rootPath: string; relativePath: string }) {
+    const { item } = await itemFromRelative(String(args.rootPath ?? ""), String(args.relativePath ?? ""));
+    if (item.kind !== "text") {
+      return { item, candidates: [], note: "Binary/unsupported: no candidates. Not Memory." };
+    }
+    const text = await dockPreview(String(args.rootPath ?? ""), item);
+    const segments = segment(item, text ?? "");
+    const candidates = candidatesFromSegments(segments);
+    return { item, candidates, note: "Derived candidates are UNCERTAIN. Not recorded Memory. Not canonical." };
   }
 
   sessionStatus(): {
@@ -1036,6 +1104,29 @@ export async function invokeDesktopCommand(
 ): Promise<unknown> {
   const host = getDesktopHost();
   switch (command) {
+    case "dock.status":
+      return host.dockStatus();
+    case "dock.discover":
+      return host.dockDiscover({
+        rootPath: String(args.rootPath ?? ""),
+        recursive: args.recursive !== false,
+      });
+    case "dock.preview":
+      return host.dockPreview({
+        rootPath: String(args.rootPath ?? ""),
+        relativePath: String(args.relativePath ?? ""),
+        maxBytes: typeof args.maxBytes === "number" ? args.maxBytes : undefined,
+      });
+    case "dock.segments":
+      return host.dockSegments({
+        rootPath: String(args.rootPath ?? ""),
+        relativePath: String(args.relativePath ?? ""),
+      });
+    case "dock.candidates":
+      return host.dockCandidates({
+        rootPath: String(args.rootPath ?? ""),
+        relativePath: String(args.relativePath ?? ""),
+      });
     case "session.status":
       return host.sessionStatus();
     case "authorization.issue":

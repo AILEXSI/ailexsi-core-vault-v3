@@ -442,3 +442,23 @@ export async function harborContext(query: string): Promise<unknown> {
 export async function harborExport(): Promise<unknown> {
   return hostCommand("harbor.export", { actorKind: "human", selectedCanonicalMemoryIds: [] });
 }
+
+export async function dockStatus(): Promise<unknown> {
+  return hostCommand("dock.status", {});
+}
+
+export async function dockDiscover(rootPath: string, recursive = true): Promise<unknown> {
+  return hostCommand("dock.discover", { rootPath, recursive });
+}
+
+export async function dockPreview(rootPath: string, relativePath: string): Promise<unknown> {
+  return hostCommand("dock.preview", { rootPath, relativePath });
+}
+
+export async function dockSegments(rootPath: string, relativePath: string): Promise<unknown> {
+  return hostCommand("dock.segments", { rootPath, relativePath });
+}
+
+export async function dockCandidates(rootPath: string, relativePath: string): Promise<unknown> {
+  return hostCommand("dock.candidates", { rootPath, relativePath });
+}

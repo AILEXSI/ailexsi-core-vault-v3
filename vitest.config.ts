@@ -16,6 +16,7 @@ export default defineConfig({
       "@ailexsi/v2-connectome": path.join(root, "packages/connectome/src/index.ts"),
       "@ailexsi/v2-test-kit": path.join(root, "packages/test-kit/src/index.ts"),
       "@ailexsi/v3-harbor": path.join(root, "packages/harbor/src/index.ts"),
+      "@ailexsi/v3-dock": path.join(root, "packages/dock/src/index.ts"),
       // Core baseline (READ ONLY checkout) — not vendored into V3 source
       "@ailexsi/contracts": path.join(core, "packages/contracts/src/index.ts"),
       "@ailexsi/memory": path.join(core, "packages/core/memory/src/index.ts"),

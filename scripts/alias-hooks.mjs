@@ -20,6 +20,7 @@ const aliases = {
   "@ailexsi/v2-test-kit": path.join(ROOT, "packages/test-kit/src/index.ts"),
   "@ailexsi/v2-connectome": path.join(ROOT, "packages/connectome/src/index.ts"),
   "@ailexsi/v3-harbor": path.join(ROOT, "packages/harbor/src/index.ts"),
+  "@ailexsi/v3-dock": path.join(ROOT, "packages/dock/src/index.ts"),
   "@ailexsi/contracts": path.join(core, "packages/contracts/src/index.ts"),
   "@ailexsi/memory": path.join(core, "packages/core/memory/src/index.ts"),
   "@ailexsi/eventstore": path.join(

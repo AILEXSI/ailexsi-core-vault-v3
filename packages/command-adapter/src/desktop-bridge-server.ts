@@ -90,6 +90,11 @@ const COMMANDS = new Set<DesktopMemoryCommand>([
   "cultivation.proposal.accept",
   "session.status",
   "authorization.issue",
+  "dock.status",
+  "dock.discover",
+  "dock.preview",
+  "dock.segments",
+  "dock.candidates",
 ]);
 
 /** Status for a POST /commands/* request before invoke. HTTP/JSON cannot mint grant.create. */

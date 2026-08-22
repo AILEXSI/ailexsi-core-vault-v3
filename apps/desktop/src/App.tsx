@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { MemoryPanel } from "./components/MemoryPanel";
 import { CultivationPanel } from "./components/CultivationPanel";
 import { HarborPanel } from "./components/HarborPanel";
+import { DockPanel } from "./components/DockPanel";
 
 type DomainView =
   | "harbor"
@@ -12,7 +13,8 @@ type DomainView =
   | "connectome"
   | "continuity"
   | "evidence"
-  | "settings";
+  | "settings"
+  | "dock";
 
 const NAV: Array<{
   id: DomainView;
@@ -84,6 +86,13 @@ const NAV: Array<{
     status: "PARTIAL",
     blurb: "Pins, agency defaults, honest connection mode.",
   },
+  {
+    id: "dock",
+    label: "Dock",
+    classification: "V3-DERIVED",
+    status: "PARTIAL",
+    blurb: "Local directory discover/preview/segment. Not recorded Memory. Not a Grant.",
+  },
 ];
 
 export function App() {
@@ -119,6 +128,8 @@ export function App() {
           <EvidenceHonesty />
         ) : view === "settings" ? (
           <SettingsHonesty />
+        ) : view === "dock" ? (
+          <DockPanel />
         ) : (
           active && (
             <div className="card">
